@@ -1,36 +1,64 @@
 pipeline { 
     environment { 
-        registry = "satyadip28/project2" 
-        registryCredential = 'satyadip28' 
-        dockerImage = '' 
-    }
-    agent any 
-    stages { 
-        stage('Cloning our Git') { 
-            steps { 
-                git 'https://github.com/SatyadipPaul/java-docker-build-tutorial.git' 
-            }
-        } 
-        stage('Building our image') { 
-            steps { 
-                script { 
-                    dockerImage = docker.build registry + ":$BUILD_NUMBER" 
-                }
-            } 
-        }
-        stage('Deploy our image') { 
-            steps { 
-                script { 
-                    docker.withRegistry( '', registryCredential ) { 
-                        dockerImage.push() 
+       registry = "satyadip28/project2" 
+       registryCredential = 'satyadip28' 
+       dockerImage = ''
+       checkUrl = 'http://0.0.0.0:8123/status'
+       checkCMD = "curl -Is ${checkUrl} | head -n 1"
+   }
+   agent any
+   stages {
+       stage('Cloning our Git') {
+           steps {
+               git 'https://github.com/SatyadipPaul/JavaMaven_AppEndPoint_Project.git'
+           }
+       }
+       stage('Building our image') {
+           steps {
+               script {
+                   dockerImage = docker.build registry + ":$BUILD_NUMBER"
+               }
+           }
+       }
+       
+       stage('Pushing App image') {
+          steps {
+              script {
+                  docker.withRegistry( '', registryCredential ) {
+                      dockerImage.push()
+                  }
+              }
+          }
+       }
+       
+       stage('Cleaning Workspace Images'){
+           steps{
+               sh "docker ps | grep $registry | awk '{print \$1}' | xargs --no-run-if-empty docker stop" 
+               sh "docker images|grep none | awk '{print \$3}'| xargs --no-run-if-empty docker rmi -f"
+               sh "docker images|grep $registryCredential | awk '{print \$3}'| xargs --no-run-if-empty docker rmi -f"
+           }
+       }
+      
+       stage('Running Container') {
+           steps {
+              sh "docker run -d -p 8123:8123 $registry:$BUILD_NUMBER"
+              sh "sleep 5"
+              sh "curl -Is http://0.0.0.0:8123/status"
+              script{
+                    def response = sh(script: checkCMD, returnStdout: true)
+                    println("*"+response.trim()+"*")
+                    if (response.trim() == 'HTTP/1.1 200 OK') {
+                        currentBuild.result = "SUCCESS"
                     }
-                } 
-            }
-        } 
-        stage('Cleaning up') { 
-            steps { 
-                sh "docker rmi $registry:$BUILD_NUMBER" 
-            }
-        } 
-    }
+                    else {
+                        currentBuild.result = "FAILURE"
+                    }
+                }
+
+            
+          }  
+       }
+       
+      
+   }
 }
