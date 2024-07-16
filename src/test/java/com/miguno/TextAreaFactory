@@ -45,4 +45,25 @@ public class TextAreaFactory {
     public TextArea createDefault(String label) {
         return create(TextAreaConfig.builder().label(label).build());
     }
+
+@Autowired
+private TextAreaFactory textAreaFactory;
+
+public void createTextAreas() {
+    // Default TextArea
+    TextArea defaultTextArea = textAreaFactory.createDefault("Default TextArea");
+
+    // Custom TextArea
+    TextArea customTextArea = textAreaFactory.create(TextAreaFactory.TextAreaConfig.builder()
+        .label("Custom TextArea")
+        .placeholder("Enter text here...")
+        .minHeight(150)
+        .maxHeight(300)
+        .maxLength(5000)
+        .characterCounter(true)
+        .build());
+
+    // Add to layout
+    add(defaultTextArea, customTextArea);
+}
 }
