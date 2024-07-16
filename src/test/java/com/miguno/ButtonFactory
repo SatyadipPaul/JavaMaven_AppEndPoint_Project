@@ -1,0 +1,64 @@
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.icon.VaadinIcon;
+import lombok.Builder;
+import lombok.Setter;
+import org.springframework.stereotype.Component;
+
+import java.util.function.Consumer;
+
+@Component
+public class ButtonFactory {
+
+    public enum IconType {
+        VAADIN, LUMO
+    }
+
+    @Setter
+    @Builder
+    public static class ButtonConfig {
+        @Builder.Default private String text = "";
+        private String icon;
+        @Builder.Default private IconType iconType = IconType.VAADIN;
+        @Builder.Default private ButtonVariant[] variants = new ButtonVariant[]{};
+        private Consumer<Button> clickListener;
+        @Builder.Default private String theme = "";
+        @Builder.Default private boolean enabled = true;
+    }
+
+    public Button create(ButtonConfig config) {
+        Button button = new Button(config.text);
+        
+        if (config.icon != null) {
+            if (config.iconType == IconType.VAADIN) {
+                button.setIcon(new Icon(VaadinIcon.valueOf(config.icon)));
+            } else {
+                button.getElement().setAttribute("theme", 
+                    "icon-" + config.icon + " " + button.getElement().getAttribute("theme"));
+            }
+        }
+        
+        if (config.variants.length > 0) {
+            button.addThemeVariants(config.variants);
+        }
+        
+        if (config.clickListener != null) {
+            button.addClickListener(e -> config.clickListener.accept(button));
+        }
+        
+        if (!config.theme.isEmpty()) {
+            button.getElement().setAttribute("theme", 
+                config.theme + " " + button.getElement().getAttribute("theme"));
+        }
+        
+        button.setEnabled(config.enabled);
+        
+        return button;
+    }
+
+    // Convenience method for quick creation with default settings
+    public Button createDefault(String text) {
+        return create(ButtonConfig.builder().text(text).build());
+    }
+}
