@@ -61,4 +61,28 @@ public class ButtonFactory {
     public Button createDefault(String text) {
         return create(ButtonConfig.builder().text(text).build());
     }
+
+@Autowired
+private ButtonFactory buttonFactory;
+
+public void createButtons() {
+    // Button with Vaadin icon
+    Button vaadinIconButton = buttonFactory.create(ButtonFactory.ButtonConfig.builder()
+        .text("Add")
+        .icon("PLUS")
+        .iconType(ButtonFactory.IconType.VAADIN)
+        .variants(new ButtonVariant[]{ButtonVariant.LUMO_PRIMARY})
+        .build());
+
+    // Button with Lumo icon
+    Button lumoIconButton = buttonFactory.create(ButtonFactory.ButtonConfig.builder()
+        .text("Search")
+        .icon("search")
+        .iconType(ButtonFactory.IconType.LUMO)
+        .variants(new ButtonVariant[]{ButtonVariant.LUMO_CONTRAST})
+        .build());
+
+    // Add to layout
+    add(vaadinIconButton, lumoIconButton);
+}
 }
