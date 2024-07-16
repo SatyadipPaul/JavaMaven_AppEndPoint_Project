@@ -1,0 +1,48 @@
+import com.vaadin.flow.component.textfield.TextArea;
+import com.vaadin.flow.data.value.ValueChangeMode;
+import lombok.Builder;
+import lombok.Setter;
+import org.springframework.stereotype.Component;
+
+@Component
+public class TextAreaFactory {
+
+    @Setter
+    @Builder
+    public static class TextAreaConfig {
+        @Builder.Default private String label = "";
+        @Builder.Default private String placeholder = "";
+        @Builder.Default private int minHeight = 200;
+        @Builder.Default private int maxHeight = 400;
+        @Builder.Default private int maxLength = 10000;
+        @Builder.Default private boolean characterCounter = true;
+    }
+
+    public TextArea create(TextAreaConfig config) {
+        TextArea textArea = new TextArea(config.label);
+        textArea.setPlaceholder(config.placeholder);
+        textArea.setWidthFull();
+        textArea.setMinHeight(config.minHeight + "px");
+        textArea.setMaxHeight(config.maxHeight + "px");
+        textArea.setHeight("auto");
+
+        textArea.getStyle().set("white-space", "pre-wrap");
+        textArea.getStyle().set("word-wrap", "break-word");
+        textArea.getStyle().set("overflow-y", "auto");
+
+        textArea.setMaxLength(config.maxLength);
+
+        if (config.characterCounter) {
+            textArea.setValueChangeMode(ValueChangeMode.EAGER);
+            textArea.addValueChangeListener(e -> 
+                textArea.setHelperText(e.getValue().length() + " / " + config.maxLength + " characters"));
+        }
+
+        return textArea;
+    }
+
+    // Convenience method for quick creation with default settings
+    public TextArea createDefault(String label) {
+        return create(TextAreaConfig.builder().label(label).build());
+    }
+}
