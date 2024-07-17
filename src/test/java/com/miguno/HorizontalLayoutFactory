@@ -1,0 +1,55 @@
+import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.orderedlayout.FlexComponent;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import lombok.Builder;
+import lombok.Setter;
+import org.springframework.stereotype.Component;
+
+@Component
+public class HorizontalLayoutFactory {
+
+    @Setter
+    @Builder
+    public static class HorizontalLayoutConfig {
+        @Builder.Default private Component[] components = new Component[]{};
+        @Builder.Default private boolean spacing = true;
+        @Builder.Default private boolean padding = true;
+        @Builder.Default private String width = "100%";
+        @Builder.Default private String height = "";
+        @Builder.Default private FlexComponent.Alignment defaultAlignment = FlexComponent.Alignment.CENTER;
+        @Builder.Default private FlexComponent.JustifyContentMode justifyContentMode = FlexComponent.JustifyContentMode.START;
+        private String className;
+        @Builder.Default private boolean expand = false;
+    }
+
+    public HorizontalLayout create(HorizontalLayoutConfig config) {
+        HorizontalLayout layout = new HorizontalLayout();
+        
+        layout.add(config.components);
+        layout.setSpacing(config.spacing);
+        layout.setPadding(config.padding);
+        layout.setWidth(config.width);
+        
+        if (!config.height.isEmpty()) {
+            layout.setHeight(config.height);
+        }
+        
+        layout.setDefaultVerticalComponentAlignment(config.defaultAlignment);
+        layout.setJustifyContentMode(config.justifyContentMode);
+        
+        if (config.className != null && !config.className.isEmpty()) {
+            layout.addClassName(config.className);
+        }
+        
+        if (config.expand) {
+            layout.expand(config.components);
+        }
+        
+        return layout;
+    }
+
+    // Convenience method for quick creation with default settings
+    public HorizontalLayout createDefault() {
+        return create(HorizontalLayoutConfig.builder().build());
+    }
+}
