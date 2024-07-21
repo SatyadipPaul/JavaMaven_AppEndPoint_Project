@@ -18,3 +18,21 @@ App End Point Project Source Code
     </script>
   </body>
 </html>
+
+ @Override
+    protected void onAttach(AttachEvent attachEvent) {
+        super.onAttach(attachEvent);
+        // Inject the script when the component is attached
+        getElement().executeJs(
+            "import('https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.mjs').then((mermaid) => {" +
+            "    mermaid.default.initialize({ startOnLoad: false });" +
+            "    const drawDiagram = async function () {" +
+            "        const element = document.querySelector('#graphDiv');" +
+            "        const graphDefinition = 'graph TB\\na-->b';" +
+            "        const { svg } = await mermaid.default.render('graphDiv', graphDefinition);" +
+            "        element.innerHTML = svg;" +
+            "    };" +
+            "    drawDiagram();" +
+            "});"
+        );
+    }
