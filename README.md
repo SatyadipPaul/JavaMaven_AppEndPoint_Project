@@ -19,7 +19,7 @@ App End Point Project Source Code
   </body>
 </html>
 
- @Override
+@Override
     protected void onAttach(AttachEvent attachEvent) {
         super.onAttach(attachEvent);
         // Inject the script when the component is attached
