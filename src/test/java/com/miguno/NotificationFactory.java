@@ -1,14 +1,15 @@
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.NotificationVariant;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.icon.VaadinIcon;
 import lombok.Builder;
 import lombok.Setter;
 import org.springframework.stereotype.Component;
-import java.util.Optional;
 import java.util.logging.Logger;
 
 @Component
 public class NotificationFactory {
-
     private static final Logger logger = Logger.getLogger(NotificationFactory.class.getName());
 
     public enum NotificationType {
@@ -42,13 +43,12 @@ public class NotificationFactory {
         }
 
         if (config.closeButtonVisible) {
-            notification.addThemeVariants(NotificationVariant.LUMO_PRIMARY);
-        } else {
-            notification.setCloseButtonVisible(false);
+            Button closeButton = new Button(new Icon(VaadinIcon.CLOSE_SMALL));
+            closeButton.addClickListener(event -> notification.close());
+            notification.add(closeButton);
         }
 
         logger.info("Created notification: " + config.text);
-
         return notification;
     }
 
