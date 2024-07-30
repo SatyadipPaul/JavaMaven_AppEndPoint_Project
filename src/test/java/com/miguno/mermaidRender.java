@@ -33,11 +33,17 @@ protected void onAttach(AttachEvent attachEvent) {
         "  const element = document.querySelector('#mermaid-diag');\n" +
         "  if (!element) return;\n" +
         "  const applySvgPanZoom = () => {\n" +
-        "    svgPanZoom('#mermaid-diag svg', {\n" +
-        "      zoomEnabled: true,\n" +
-        "      controlIconsEnabled: true,\n" +
-        "      fit: true,\n" +
-        "      center: true\n" +
+        "    // Wait for the next frame to ensure the SVG is in the DOM\n" +
+        "    requestAnimationFrame(() => {\n" +
+        "      const svg = element.querySelector('svg');\n" +
+        "      if (svg) {\n" +
+        "        svgPanZoom(svg, {\n" +
+        "          zoomEnabled: true,\n" +
+        "          controlIconsEnabled: true,\n" +
+        "          fit: true,\n" +
+        "          center: true\n" +
+        "        });\n" +
+        "      }\n" +
         "    });\n" +
         "  };\n" +
         "  // If the diagram is already rendered, apply svgPanZoom immediately\n" +
