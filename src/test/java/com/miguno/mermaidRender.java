@@ -26,19 +26,23 @@
         );
 
         // Include the svg-pan-zoom library and listen for the mermaidRendered event
-        getElement().executeJs(
-            "const script = document.createElement('script');\n" +
-            "script.src = 'https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js';\n" +
-            "script.onload = function() {\n" +
-            "  document.querySelector('#mermaid-diag').addEventListener('mermaidRendered', function () {\n" +
-            "    svgPanZoom('#mermaid-diag svg', {\n" +
-            "      zoomEnabled: true,\n" +
-            "      controlIconsEnabled: true,\n" +
-            "      fit: true,\n" +
-            "      center: true\n" +
-            "    });\n" +
-            "  });\n" +
-            "};\n" +
-            "document.head.appendChild(script);"
+        mermaidContainer.getElement().executeJs(
+            """
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js';
+            script.onload = function() {
+              document.querySelector('#mermaid-diag').addEventListener('mermaidRendered', function () {
+                setTimeout(() => {
+                  svgPanZoom('#mermaid-diag svg', {
+                    zoomEnabled: true,
+                    controlIconsEnabled: true,
+                    fit: true,
+                    center: true
+                  });
+                }, 100); // Add a slight delay
+              });
+            };
+            document.head.appendChild(script);
+        """
         );
     }
