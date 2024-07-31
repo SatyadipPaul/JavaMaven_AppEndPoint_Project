@@ -25,18 +25,20 @@
             "  });"
         );
 
-        // Listen for the mermaidRendered event and initialize svg-pan-zoom
+        // Include the svg-pan-zoom library and listen for the mermaidRendered event
         getElement().executeJs(
-            "document.querySelector('#mermaid-diag').addEventListener('mermaidRendered', function () {\n" +
-            "  import('https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js').then((module) => {\n" +
-            "    const svgPanZoom = module.default;\n" +
-            "    svgPanZoom('#graphDiv', {\n" +
+            "const script = document.createElement('script');\n" +
+            "script.src = 'https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js';\n" +
+            "script.onload = function() {\n" +
+            "  document.querySelector('#mermaid-diag').addEventListener('mermaidRendered', function () {\n" +
+            "    svgPanZoom('#mermaid-diag svg', {\n" +
             "      zoomEnabled: true,\n" +
             "      controlIconsEnabled: true,\n" +
             "      fit: true,\n" +
             "      center: true\n" +
             "    });\n" +
             "  });\n" +
-            "});"
+            "};\n" +
+            "document.head.appendChild(script);"
         );
     }
