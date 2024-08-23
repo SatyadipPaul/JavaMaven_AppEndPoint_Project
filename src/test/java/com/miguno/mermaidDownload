@@ -1,0 +1,50 @@
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.router.Route;
+import com.vaadin.flow.server.StreamResource;
+import com.vaadin.flow.component.page.Page;
+import com.vaadin.flow.server.VaadinSession;
+import com.vaadin.flow.component.UI;
+
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+
+@Route("svg-view")
+public class SVGView extends VerticalLayout {
+
+    private String svgContent = "";
+
+    public SVGView() {
+        // Create a div to hold the SVG content
+        Div svgContainer = new Div();
+        svgContainer.setId("mermaid-diag");
+        svgContainer.getElement().setProperty("innerHTML", "<svg width=\"200\" height=\"200\"><rect width=\"200\" height=\"200\" fill=\"rgb(0,0,255)\" /><text x=\"100\" y=\"100\" font-family=\"Verdana\" font-size=\"35\" fill=\"white\" text-anchor=\"middle\">SVG</text></svg>");
+
+        // Create a download button
+        Button downloadButton = new Button("Download SVG", event -> downloadSVG());
+
+        // Add components to the layout
+        add(svgContainer, downloadButton);
+    }
+
+    private void downloadSVG() {
+        UI.getCurrent().getPage().executeJs(
+            "const svg = document.querySelector('#mermaid-diag>svg');" +
+            "if (svg) {" +
+            "  const svgContent = new XMLSerializer().serializeToString(svg);" +
+            "  return svgContent;" +
+            "} else {" +
+            "  return '';" +
+            "}"
+        ).then(String.class, result -> {
+            if (!result.isEmpty()) {
+                svgContent = result;
+                StreamResource resource = new StreamResource("diagram.svg", () -> 
+                    new ByteArrayInputStream(svgContent.getBytes(StandardCharsets.UTF_8)));
+                
+                UI.getCurrent().getPage().open(resource);
+            }
+        });
+    }
+}
