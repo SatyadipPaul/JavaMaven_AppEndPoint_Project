@@ -1,0 +1,84 @@
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.dialog.Dialog;
+import com.vaadin.flow.component.html.Pre;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.spring.annotation.SpringComponent;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import org.json.JSONObject;
+import org.json.XML;
+import org.springframework.beans.factory.annotation.Autowired;
+import lombok.Getter;
+import lombok.Setter;
+
+@SpringComponent
+@Getter
+@Setter
+public class FormattedDialog extends Dialog {
+
+    private Pre contentArea;
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    public FormattedDialog(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+        this.objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
+
+        contentArea = new Pre();
+        contentArea.getStyle()
+            .set("white-space", "pre-wrap")
+            .set("word-wrap", "break-word")
+            .set("font-family", "monospace");
+
+        VerticalLayout layout = new VerticalLayout(contentArea);
+        layout.setPadding(true);
+        layout.setSpacing(true);
+
+        Button closeButton = new Button("Close", event -> close());
+
+        add(layout, closeButton);
+    }
+
+    public void setContent(String content) {
+        String formattedContent;
+        String colorClass;
+
+        try {
+            // Try to parse as JSON
+            new JSONObject(content);
+            formattedContent = objectMapper.writeValueAsString(objectMapper.readTree(content));
+            colorClass = "json";
+        } catch (Exception e) {
+            try {
+                // If not JSON, try to parse as XML
+                formattedContent = XML.toString(XML.toJSONObject(content), 2);
+                colorClass = "xml";
+            } catch (Exception ex) {
+                // If neither JSON nor XML, display as plain text
+                formattedContent = content;
+                colorClass = "plaintext";
+            }
+        }
+
+        contentArea.setText(formattedContent);
+        setColorFormatting(colorClass);
+    }
+
+    private void setColorFormatting(String colorClass) {
+        switch (colorClass) {
+            case "json":
+                contentArea.getStyle().set("color", "#000080"); // Navy blue for JSON
+                break;
+            case "xml":
+                contentArea.getStyle().set("color", "#008000"); // Green for XML
+                break;
+            default:
+                contentArea.getStyle().set("color", "#000000"); // Black for plain text
+        }
+    }
+
+    public void open(String content) {
+        setContent(content);
+        super.open();
+    }
+}
