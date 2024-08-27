@@ -1,7 +1,9 @@
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.dialog.Dialog;
-import com.vaadin.flow.component.html.Pre;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.dependency.JavaScript;
+import com.vaadin.flow.component.dependency.StyleSheet;
 import com.vaadin.flow.spring.annotation.SpringComponent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -12,11 +14,15 @@ import lombok.Getter;
 import lombok.Setter;
 
 @SpringComponent
+@JavaScript("https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/prism.min.js")
+@JavaScript("https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-json.min.js")
+@JavaScript("https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-markup.min.js")
+@StyleSheet("https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/themes/prism.min.css")
 @Getter
 @Setter
 public class FormattedDialog extends Dialog {
 
-    private Pre contentArea;
+    private Div contentArea;
     private ObjectMapper objectMapper;
 
     @Autowired
@@ -24,10 +30,10 @@ public class FormattedDialog extends Dialog {
         this.objectMapper = objectMapper;
         this.objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
 
-        contentArea = new Pre();
+        contentArea = new Div();
         contentArea.getStyle()
-            .set("white-space", "pre-wrap")
-            .set("word-wrap", "break-word")
+            .set("max-height", "400px")
+            .set("overflow", "auto")
             .set("font-family", "monospace");
 
         VerticalLayout layout = new VerticalLayout(contentArea);
@@ -41,40 +47,40 @@ public class FormattedDialog extends Dialog {
 
     public void setContent(String content) {
         String formattedContent;
-        String colorClass;
+        String language;
 
         try {
             // Try to parse as JSON
-            new JSONObject(content);
-            formattedContent = objectMapper.writeValueAsString(objectMapper.readTree(content));
-            colorClass = "json";
+            JSONObject jsonObject = new JSONObject(content);
+            formattedContent = objectMapper.writeValueAsString(jsonObject);
+            language = "language-json";
         } catch (Exception e) {
             try {
                 // If not JSON, try to parse as XML
-                formattedContent = XML.toString(XML.toJSONObject(content), 2);
-                colorClass = "xml";
+                String formattedXml = XML.toString(XML.toJSONObject(content), 2);
+                formattedContent = formattedXml;
+                language = "language-markup";
             } catch (Exception ex) {
                 // If neither JSON nor XML, display as plain text
                 formattedContent = content;
-                colorClass = "plaintext";
+                language = "language-plaintext";
             }
         }
 
-        contentArea.setText(formattedContent);
-        setColorFormatting(colorClass);
+        String escapedContent = escapeHtml(formattedContent);
+        contentArea.getElement().setProperty("innerHTML", 
+            "<pre><code class=\"" + language + "\">" + escapedContent + "</code></pre>");
+        
+        // Trigger PrismJS highlighting
+        getElement().executeJs("Prism.highlightAllUnder($0)", contentArea.getElement());
     }
 
-    private void setColorFormatting(String colorClass) {
-        switch (colorClass) {
-            case "json":
-                contentArea.getStyle().set("color", "#000080"); // Navy blue for JSON
-                break;
-            case "xml":
-                contentArea.getStyle().set("color", "#008000"); // Green for XML
-                break;
-            default:
-                contentArea.getStyle().set("color", "#000000"); // Black for plain text
-        }
+    private String escapeHtml(String content) {
+        return content.replace("&", "&amp;")
+                      .replace("<", "&lt;")
+                      .replace(">", "&gt;")
+                      .replace("\"", "&quot;")
+                      .replace("'", "&#039;");
     }
 
     public void open(String content) {
