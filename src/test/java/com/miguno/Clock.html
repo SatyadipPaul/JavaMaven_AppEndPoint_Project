@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dual Timezone Clocks with UTC</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.5/gsap.min.js"></script>
+    <style>
+        /* Basic Styles */
+        body, html {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            display: flex;
+            gap: 100px;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .clock-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            transform: scale(0.5); /* Initially scaled down */
+            transform-origin: center center;
+        }
+        .clock {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background-color: #f0f0f0;
+            position: relative;
+            transition: box-shadow 0.5s ease;
+        }
+        .clock-container {
+            padding: 20px;
+        }
+        .hand {
+            position: absolute;
+            bottom: 50%;
+            left: 50%;
+            transform-origin: 50% 100%;
+            background-color: #333;
+        }
+        .hour-hand {
+            width: 6px;
+            height: 60px;
+            margin-left: -3px;
+        }
+        .minute-hand {
+            width: 4px;
+            height: 80px;
+            margin-left: -2px;
+        }
+        .second-hand {
+            width: 2px;
+            height: 90px;
+            margin-left: -1px;
+            background-color: #ff6b6b;
+        }
+        .center-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #333;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        /* Digital Time Styles */
+        .digital-time {
+            display: flex;
+            gap: 5px;
+            margin-top: 20px;
+            background-color: transparent; /* Made background transparent */
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .flip-clock-digit {
+            background-color: transparent; /* Made background transparent */
+            color: #333;
+            font-size: 36px;
+            font-weight: bold;
+            width: 40px;
+            height: 60px;
+            line-height: 60px;
+            text-align: center;
+            border-radius: 5px;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid black; /* Added black border */
+        }
+        .flip-clock-digit::before,
+        .flip-clock-digit::after {
+            content: attr(data-value);
+            position: absolute;
+            left: 0;
+            right: 0;
+            background-color: transparent; /* Made background transparent */
+        }
+        .flip-clock-digit::before {
+            top: 0;
+            z-index: 2;
+            transform-origin: 50% 100%;
+            transform: perspective(200px);
+        }
+        .flip-clock-digit::after {
+            bottom: 0;
+            z-index: 1;
+            transform-origin: 50% 0%;
+            transform: perspective(200px) rotateX(180deg);
+        }
+        .flip-clock-digit.flip::before {
+            animation: flipTop 0.3s linear;
+        }
+        .flip-clock-digit.flip::after {
+            animation: flipBottom 0.3s linear;
+        }
+        @keyframes flipTop {
+            0% { transform: perspective(200px) rotateX(0deg); }
+            100% { transform: perspective(200px) rotateX(-90deg); }
+        }
+        @keyframes flipBottom {
+            0% { transform: perspective(200px) rotateX(180deg); }
+            100% { transform: perspective(200px) rotateX(0deg); }
+        }
+        .flip-clock-separator {
+            color: #000;
+            font-size: 36px;
+            font-weight: bold;
+            align-self: center;
+        }
+        .timezone {
+            text-align: center;
+            font-size: 18px;
+            margin-top: 10px;
+            font-weight: bold;
+            color: #000;
+        }
+        /* Initially hide the digital time */
+        .clock-content {
+            opacity: 0;
+        }
+        /* Ensure timezone label is always visible */
+        .clock-wrapper .timezone {
+            opacity: 1;
+            transition: opacity 0.5s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- BST Clock -->
+        <div class="clock-wrapper">
+            <div class="clock-container">
+                <div id="bst-clock" class="clock">
+                    <div class="hand hour-hand"></div>
+                    <div class="hand minute-hand"></div>
+                    <div class="hand second-hand"></div>
+                    <div class="center-dot"></div>
+                </div>
+            </div>
+            <div class="timezone">BST</div>
+            <div class="clock-content">
+                <div class="digital-time">
+                    <span class="flip-clock-digit hour-tens" data-value="0">0</span>
+                    <span class="flip-clock-digit hour-ones" data-value="0">0</span>
+                    <span class="flip-clock-separator">:</span>
+                    <span class="flip-clock-digit minute-tens" data-value="0">0</span>
+                    <span class="flip-clock-digit minute-ones" data-value="0">0</span>
+                    <span class="flip-clock-separator">:</span>
+                    <span class="flip-clock-digit second-tens" data-value="0">0</span>
+                    <span class="flip-clock-digit second-ones" data-value="0">0</span>
+                </div>
+            </div>
+        </div>
+        <!-- IST Clock -->
+        <div class="clock-wrapper">
+            <div class="clock-container">
+                <div id="ist-clock" class="clock">
+                    <div class="hand hour-hand"></div>
+                    <div class="hand minute-hand"></div>
+                    <div class="hand second-hand"></div>
+                    <div class="center-dot"></div>
+                </div>
+            </div>
+            <div class="timezone">IST</div>
+            <div class="clock-content">
+                <div class="digital-time">
+                    <span class="flip-clock-digit hour-tens" data-value="0">0</span>
+                    <span class="flip-clock-digit hour-ones" data-value="0">0</span>
+                    <span class="flip-clock-separator">:</span>
+                    <span class="flip-clock-digit minute-tens" data-value="0">0</span>
+                    <span class="flip-clock-digit minute-ones" data-value="0">0</span>
+                    <span class="flip-clock-separator">:</span>
+                    <span class="flip-clock-digit second-tens" data-value="0">0</span>
+                    <span class="flip-clock-digit second-ones" data-value="0">0</span>
+                </div>
+            </div>
+        </div>
+        <!-- UTC Clock -->
+        <div class="clock-wrapper">
+            <div class="clock-container">
+                <div id="utc-clock" class="clock">
+                    <div class="hand hour-hand"></div>
+                    <div class="hand minute-hand"></div>
+                    <div class="hand second-hand"></div>
+                    <div class="center-dot"></div>
+                </div>
+            </div>
+            <div class="timezone">UTC</div>
+            <div class="clock-content">
+                <div class="digital-time">
+                    <span class="flip-clock-digit hour-tens" data-value="0">0</span>
+                    <span class="flip-clock-digit hour-ones" data-value="0">0</span>
+                    <span class="flip-clock-separator">:</span>
+                    <span class="flip-clock-digit minute-tens" data-value="0">0</span>
+                    <span class="flip-clock-digit minute-ones" data-value="0">0</span>
+                    <span class="flip-clock-separator">:</span>
+                    <span class="flip-clock-digit second-tens" data-value="0">0</span>
+                    <span class="flip-clock-digit second-ones" data-value="0">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function setClockHands(clockId, hours, minutes, seconds) {
+            const clock = document.getElementById(clockId);
+            const hourHand = clock.querySelector('.hour-hand');
+            const minuteHand = clock.querySelector('.minute-hand');
+            const secondHand = clock.querySelector('.second-hand');
+            const digitalTime = clock.parentNode.parentNode.querySelector('.digital-time');
+
+            const hourDegrees = (hours % 12 + minutes / 60) * 30;
+            const minuteDegrees = (minutes + seconds / 60) * 6;
+            const secondDegrees = seconds * 6;
+
+            gsap.set(hourHand, { rotation: hourDegrees });
+            gsap.set(minuteHand, { rotation: minuteDegrees });
+            gsap.set(secondHand, { rotation: secondDegrees });
+
+            updateDigitalTime(digitalTime, hours, minutes, seconds);
+
+            updateShadow(clock, hours);
+        }
+
+        function updateDigitalTime(digitalTimeElement, hours, minutes, seconds) {
+            const paddedHours = String(hours).padStart(2, '0');
+            const paddedMinutes = String(minutes).padStart(2, '0');
+            const paddedSeconds = String(seconds).padStart(2, '0');
+
+            updateDigit(digitalTimeElement.querySelector('.hour-tens'), paddedHours[0]);
+            updateDigit(digitalTimeElement.querySelector('.hour-ones'), paddedHours[1]);
+            updateDigit(digitalTimeElement.querySelector('.minute-tens'), paddedMinutes[0]);
+            updateDigit(digitalTimeElement.querySelector('.minute-ones'), paddedMinutes[1]);
+            updateDigit(digitalTimeElement.querySelector('.second-tens'), paddedSeconds[0]);
+            updateDigit(digitalTimeElement.querySelector('.second-ones'), paddedSeconds[1]);
+        }
+
+        function updateDigit(digitElement, newValue) {
+            if (digitElement.textContent !== newValue) {
+                digitElement.classList.add('flip');
+                digitElement.addEventListener('animationend', function() {
+                    digitElement.classList.remove('flip');
+                    digitElement.textContent = newValue;
+                    digitElement.setAttribute('data-value', newValue);
+                }, {once: true});
+            }
+        }
+
+        function updateShadow(clock, hours) {
+            const angle = ((hours % 12) / 12) * 360;
+            const shadowX = Math.sin((angle * Math.PI) / 180) * 20;
+            const shadowY = -Math.cos((angle * Math.PI) / 180) * 20;
+            clock.style.boxShadow = `${shadowX}px ${shadowY}px 30px rgba(0, 0, 0, 0.3)`;
+        }
+
+        function updateClocks() {
+            const now = new Date();
+
+            // BST Time
+            const bstTime = new Date(now.toLocaleString("en-US", { timeZone: "Europe/London" }));
+            setClockHands('bst-clock', bstTime.getHours(), bstTime.getMinutes(), bstTime.getSeconds());
+
+            // IST Time
+            const istTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+            setClockHands('ist-clock', istTime.getHours(), istTime.getMinutes(), istTime.getSeconds());
+
+            // UTC Time
+            const utcTime = new Date(now.toLocaleString("en-US", { timeZone: "UTC" }));
+            setClockHands('utc-clock', utcTime.getHours(), utcTime.getMinutes(), utcTime.getSeconds());
+        }
+
+        setInterval(updateClocks, 1000);
+        updateClocks(); // Initial call
+
+        // Mouseover animations
+        const clockWrappers = document.querySelectorAll('.clock-wrapper');
+
+        clockWrappers.forEach(wrapper => {
+            wrapper.addEventListener('mouseenter', () => {
+                // Animate expansion
+                gsap.to(wrapper, {scale: 1, duration: 0.5, ease: 'power2.out'});
+                gsap.to(wrapper.querySelector('.clock-content'), {opacity: 1, duration: 0.5, ease: 'power2.out'});
+            });
+
+            wrapper.addEventListener('mouseleave', () => {
+                // Animate collapse
+                gsap.to(wrapper, {scale: 0.5, duration: 0.5, ease: 'power2.in'});
+                gsap.to(wrapper.querySelector('.clock-content'), {opacity: 0, duration: 0.5, ease: 'power2.in'});
+            });
+        });
+    </script>
+</body>
+</html>
