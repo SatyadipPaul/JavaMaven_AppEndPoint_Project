@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Dual Timezone Clocks with UTC</title>
+    <title>Time Zone Clocks with UTC</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.5/gsap.min.js"></script>
     <style>
         /* Basic Styles */
@@ -17,6 +17,7 @@
             justify-content: center;
             align-items: center;
             padding: 20px;
+            flex-wrap: wrap; /* Allow wrapping for smaller screens */
         }
         .clock-wrapper {
             display: flex;
@@ -25,6 +26,7 @@
             cursor: pointer;
             transform: scale(0.5); /* Initially scaled down */
             transform-origin: center center;
+            transition: transform 0.5s ease; /* Smooth transition for responsive scaling */
         }
         .clock {
             width: 200px;
@@ -75,12 +77,12 @@
             display: flex;
             gap: 5px;
             margin-top: 20px;
-            background-color: transparent; /* Made background transparent */
+            background-color: transparent;
             padding: 10px;
             border-radius: 5px;
         }
         .flip-clock-digit {
-            background-color: transparent; /* Made background transparent */
+            background-color: transparent;
             color: #333;
             font-size: 36px;
             font-weight: bold;
@@ -91,7 +93,7 @@
             border-radius: 5px;
             position: relative;
             overflow: hidden;
-            border: 1px solid black; /* Added black border */
+            border: 1px solid black;
         }
         .flip-clock-digit::before,
         .flip-clock-digit::after {
@@ -99,7 +101,7 @@
             position: absolute;
             left: 0;
             right: 0;
-            background-color: transparent; /* Made background transparent */
+            background-color: transparent;
         }
         .flip-clock-digit::before {
             top: 0;
@@ -149,6 +151,27 @@
             opacity: 1;
             transition: opacity 0.5s ease;
         }
+        /* Responsive scaling */
+        @media (max-width: 1200px) {
+            .clock-wrapper {
+                transform: scale(0.4);
+            }
+        }
+        @media (max-width: 992px) {
+            .clock-wrapper {
+                transform: scale(0.35);
+            }
+        }
+        @media (max-width: 768px) {
+            .clock-wrapper {
+                transform: scale(0.3);
+            }
+        }
+        @media (max-width: 576px) {
+            .clock-wrapper {
+                transform: scale(0.25);
+            }
+        }
     </style>
 </head>
 <body>
@@ -156,7 +179,7 @@
     <!-- BST Clock -->
     <div class="clock-wrapper">
         <div class="clock-container">
-            <div id="bst-clock" class="clock">
+            <div id="bst-clock" class="clock" role="img" aria-label="Analog clock showing BST time">
                 <div class="hand hour-hand"></div>
                 <div class="hand minute-hand"></div>
                 <div class="hand second-hand"></div>
@@ -165,7 +188,7 @@
         </div>
         <div class="timezone">BST</div>
         <div class="clock-content">
-            <div class="digital-time">
+            <div class="digital-time" aria-label="Digital time display for BST">
                 <span class="flip-clock-digit hour-tens" data-value="0">0</span>
                 <span class="flip-clock-digit hour-ones" data-value="0">0</span>
                 <span class="flip-clock-separator">:</span>
@@ -180,7 +203,7 @@
     <!-- IST Clock -->
     <div class="clock-wrapper">
         <div class="clock-container">
-            <div id="ist-clock" class="clock">
+            <div id="ist-clock" class="clock" role="img" aria-label="Analog clock showing IST time">
                 <div class="hand hour-hand"></div>
                 <div class="hand minute-hand"></div>
                 <div class="hand second-hand"></div>
@@ -189,7 +212,7 @@
         </div>
         <div class="timezone">IST</div>
         <div class="clock-content">
-            <div class="digital-time">
+            <div class="digital-time" aria-label="Digital time display for IST">
                 <span class="flip-clock-digit hour-tens" data-value="0">0</span>
                 <span class="flip-clock-digit hour-ones" data-value="0">0</span>
                 <span class="flip-clock-separator">:</span>
@@ -204,7 +227,7 @@
     <!-- UTC Clock -->
     <div class="clock-wrapper">
         <div class="clock-container">
-            <div id="utc-clock" class="clock">
+            <div id="utc-clock" class="clock" role="img" aria-label="Analog clock showing UTC time">
                 <div class="hand hour-hand"></div>
                 <div class="hand minute-hand"></div>
                 <div class="hand second-hand"></div>
@@ -213,7 +236,7 @@
         </div>
         <div class="timezone">UTC</div>
         <div class="clock-content">
-            <div class="digital-time">
+            <div class="digital-time" aria-label="Digital time display for UTC">
                 <span class="flip-clock-digit hour-tens" data-value="0">0</span>
                 <span class="flip-clock-digit hour-ones" data-value="0">0</span>
                 <span class="flip-clock-separator">:</span>
@@ -303,13 +326,13 @@
 
     clockWrappers.forEach(wrapper => {
         wrapper.addEventListener('mouseenter', () => {
-            // Animate expansion
-            gsap.to(wrapper, {scale: 1, duration: 0.5, ease: 'power2.out'});
+            // Animate expansion to scale 0.75 (reduced size by 50% from previous scale 1)
+            gsap.to(wrapper, {scale: 0.75, duration: 0.5, ease: 'power2.out'});
             gsap.to(wrapper.querySelector('.clock-content'), {opacity: 1, duration: 0.5, ease: 'power2.out'});
         });
 
         wrapper.addEventListener('mouseleave', () => {
-            // Animate collapse
+            // Animate collapse back to scale 0.5
             gsap.to(wrapper, {scale: 0.5, duration: 0.5, ease: 'power2.in'});
             gsap.to(wrapper.querySelector('.clock-content'), {opacity: 0, duration: 0.5, ease: 'power2.in'});
         });
