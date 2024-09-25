@@ -1,4 +1,5 @@
 package com.example.application.views;
+
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dependency.JavaScript;
@@ -9,6 +10,10 @@ public class ClockComponent extends Div {
 
     public ClockComponent() {
         setId("clock-container");
+        // Set the size of the component to match other elements
+        setWidth("150px");   // Adjust to your desired width
+        setHeight("150px");  // Adjust to your desired height
+        getStyle().set("position", "relative"); // Ensure proper positioning
     }
 
     @Override
@@ -25,174 +30,150 @@ public class ClockComponent extends Div {
     private String getClockHtml() {
         return """
                 <style>
-                        /* Basic Styles */
-                        body, html {
-                            margin: 0;
-                            padding: 0;
-                            font-family: Arial, sans-serif;
-                        }
-                        .container {
-                            display: flex;
-                            gap: 100px;
-                            justify-content: center;
-                            align-items: center;
-                            padding: 20px;
-                            flex-wrap: wrap; /* Allow wrapping for smaller screens */
-                        }
-                        .clock-wrapper {
-                            display: flex;
-                            flex-direction: column;
-                            align-items: center;
-                            cursor: pointer;
-                            transform: scale(0.5); /* Initially scaled down */
-                            transform-origin: center center;
-                            transition: transform 0.5s ease; /* Smooth transition for responsive scaling */
-                        }
-                        .clock {
-                            width: 200px;
-                            height: 200px;
-                            border-radius: 50%;
-                            background-color: #f0f0f0;
-                            position: relative;
-                            transition: box-shadow 0.5s ease;
-                        }
-                        .clock-container {
-                            padding: 20px;
-                        }
-                        .hand {
-                            position: absolute;
-                            bottom: 50%;
-                            left: 50%;
-                            transform-origin: 50% 100%;
-                            background-color: #333;
-                        }
-                        .hour-hand {
-                            width: 6px;
-                            height: 60px;
-                            margin-left: -3px;
-                        }
-                        .minute-hand {
-                            width: 4px;
-                            height: 80px;
-                            margin-left: -2px;
-                        }
-                        .second-hand {
-                            width: 2px;
-                            height: 90px;
-                            margin-left: -1px;
-                            background-color: #ff6b6b;
-                        }
-                        .center-dot {
-                            width: 12px;
-                            height: 12px;
-                            border-radius: 50%;
-                            background-color: #333;
-                            position: absolute;
-                            top: 50%;
-                            left: 50%;
-                            transform: translate(-50%, -50%);
-                        }
-                        /* Digital Time Styles */
-                        .digital-time {
-                            display: flex;
-                            gap: 5px;
-                            margin-top: 20px;
-                            background-color: transparent;
-                            padding: 10px;
-                            border-radius: 5px;
-                        }
-                        .flip-clock-digit {
-                            background-color: transparent;
-                            color: #333;
-                            font-size: 36px;
-                            font-weight: bold;
-                            width: 40px;
-                            height: 60px;
-                            line-height: 60px;
-                            text-align: center;
-                            border-radius: 5px;
-                            position: relative;
-                            overflow: hidden;
-                            border: 1px solid black;
-                        }
-                        .flip-clock-digit::before,
-                        .flip-clock-digit::after {
-                            content: attr(data-value);
-                            position: absolute;
-                            left: 0;
-                            right: 0;
-                            background-color: transparent;
-                        }
-                        .flip-clock-digit::before {
-                            top: 0;
-                            z-index: 2;
-                            transform-origin: 50% 100%;
-                            transform: perspective(200px);
-                        }
-                        .flip-clock-digit::after {
-                            bottom: 0;
-                            z-index: 1;
-                            transform-origin: 50% 0%;
-                            transform: perspective(200px) rotateX(180deg);
-                        }
-                        .flip-clock-digit.flip::before {
-                            animation: flipTop 0.3s linear;
-                        }
-                        .flip-clock-digit.flip::after {
-                            animation: flipBottom 0.3s linear;
-                        }
-                        @keyframes flipTop {
-                            0% { transform: perspective(200px) rotateX(0deg); }
-                            100% { transform: perspective(200px) rotateX(-90deg); }
-                        }
-                        @keyframes flipBottom {
-                            0% { transform: perspective(200px) rotateX(180deg); }
-                            100% { transform: perspective(200px) rotateX(0deg); }
-                        }
-                        .flip-clock-separator {
-                            color: #000;
-                            font-size: 36px;
-                            font-weight: bold;
-                            align-self: center;
-                        }
-                        .timezone {
-                            text-align: center;
-                            font-size: 18px;
-                            margin-top: 10px;
-                            font-weight: bold;
-                            color: #000;
-                        }
-                        /* Initially hide the digital time */
-                        .clock-content {
-                            opacity: 0;
-                        }
-                        /* Ensure timezone label is always visible */
-                        .clock-wrapper .timezone {
-                            opacity: 1;
-                            transition: opacity 0.5s ease;
-                        }
-                        /* Responsive scaling */
-                        @media (max-width: 1200px) {
-                            .clock-wrapper {
-                                transform: scale(0.4);
-                            }
-                        }
-                        @media (max-width: 992px) {
-                            .clock-wrapper {
-                                transform: scale(0.35);
-                            }
-                        }
-                        @media (max-width: 768px) {
-                            .clock-wrapper {
-                                transform: scale(0.3);
-                            }
-                        }
-                        @media (max-width: 576px) {
-                            .clock-wrapper {
-                                transform: scale(0.25);
-                            }
-                        }
-                    </style>
+                    /* Basic Styles */
+                    .container {
+                        display: flex;
+                        gap: 1em;
+                        justify-content: center;
+                        align-items: center;
+                        padding: 1em;
+                    }
+                    .clock-wrapper {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        cursor: pointer;
+                        width: 100%;
+                        height: 100%;
+                        transform-origin: center center;
+                        transition: transform 0.5s ease;
+                    }
+                    .clock-container {
+                        width: 100%;
+                        height: 100%;
+                        position: relative;
+                    }
+                    .clock {
+                        width: 100%;
+                        height: 100%;
+                        border-radius: 50%;
+                        background-color: #f0f0f0;
+                        position: relative;
+                        transition: box-shadow 0.5s ease;
+                    }
+                    .hand {
+                        position: absolute;
+                        bottom: 50%;
+                        left: 50%;
+                        transform-origin: 50% 100%;
+                        background-color: #333;
+                    }
+                    .hour-hand {
+                        width: 3%;
+                        height: 30%;
+                        margin-left: -1.5%;
+                    }
+                    .minute-hand {
+                        width: 2%;
+                        height: 40%;
+                        margin-left: -1%;
+                    }
+                    .second-hand {
+                        width: 1%;
+                        height: 45%;
+                        margin-left: -0.5%;
+                        background-color: #ff6b6b;
+                    }
+                    .center-dot {
+                        width: 6%;
+                        height: 6%;
+                        border-radius: 50%;
+                        background-color: #333;
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                    }
+                    /* Digital Time Styles */
+                    .digital-time {
+                        display: flex;
+                        gap: 0.2em;
+                        margin-top: 0.5em;
+                        background-color: transparent;
+                        padding: 0.5em;
+                        border-radius: 5px;
+                    }
+                    .flip-clock-digit {
+                        background-color: transparent;
+                        color: #333;
+                        font-size: 1em;
+                        font-weight: bold;
+                        width: 1em;
+                        height: 1.5em;
+                        line-height: 1.5em;
+                        text-align: center;
+                        border-radius: 5px;
+                        position: relative;
+                        overflow: hidden;
+                        border: 0.1em solid black;
+                    }
+                    .flip-clock-digit::before,
+                    .flip-clock-digit::after {
+                        content: attr(data-value);
+                        position: absolute;
+                        left: 0;
+                        right: 0;
+                        background-color: transparent;
+                    }
+                    .flip-clock-digit::before {
+                        top: 0;
+                        z-index: 2;
+                        transform-origin: 50% 100%;
+                        transform: perspective(200px);
+                    }
+                    .flip-clock-digit::after {
+                        bottom: 0;
+                        z-index: 1;
+                        transform-origin: 50% 0%;
+                        transform: perspective(200px) rotateX(180deg);
+                    }
+                    .flip-clock-digit.flip::before {
+                        animation: flipTop 0.3s linear;
+                    }
+                    .flip-clock-digit.flip::after {
+                        animation: flipBottom 0.3s linear;
+                    }
+                    @keyframes flipTop {
+                        0% { transform: perspective(200px) rotateX(0deg); }
+                        100% { transform: perspective(200px) rotateX(-90deg); }
+                    }
+                    @keyframes flipBottom {
+                        0% { transform: perspective(200px) rotateX(180deg); }
+                        100% { transform: perspective(200px) rotateX(0deg); }
+                    }
+                    .flip-clock-separator {
+                        color: #000;
+                        font-size: 1em;
+                        font-weight: bold;
+                        align-self: center;
+                    }
+                    .timezone {
+                        text-align: center;
+                        font-size: 0.8em;
+                        margin-top: 0.5em;
+                        font-weight: bold;
+                        color: #000;
+                    }
+                    /* Initially hide the digital time */
+                    .clock-content {
+                        opacity: 0;
+                    }
+                    /* Ensure timezone label is always visible */
+                    .clock-wrapper .timezone {
+                        opacity: 1;
+                        transition: opacity 0.5s ease;
+                    }
+                </style>
                 <div class="container">
                     <!-- BST Clock -->
                     <div class="clock-wrapper">
@@ -267,36 +248,36 @@ public class ClockComponent extends Div {
                         </div>
                     </div>
                 </div>
-        """;
+            """;
     }
 
     private String getClockJs() {
         return """
-        function setClockHands(clockId, hours, minutes, seconds) {
+            function setClockHands(clockId, hours, minutes, seconds) {
                 const clock = document.getElementById(clockId);
                 const hourHand = clock.querySelector('.hour-hand');
                 const minuteHand = clock.querySelector('.minute-hand');
                 const secondHand = clock.querySelector('.second-hand');
                 const digitalTime = clock.parentNode.parentNode.querySelector('.digital-time');
-                
+
                 const hourDegrees = (hours % 12 + minutes / 60) * 30;
                 const minuteDegrees = (minutes + seconds / 60) * 6;
                 const secondDegrees = seconds * 6;
-                
+
                 gsap.set(hourHand, { rotation: hourDegrees });
                 gsap.set(minuteHand, { rotation: minuteDegrees });
                 gsap.set(secondHand, { rotation: secondDegrees });
-                
+
                 updateDigitalTime(digitalTime, hours, minutes, seconds);
-                
+
                 updateShadow(clock, hours);
             }
-                
+
             function updateDigitalTime(digitalTimeElement, hours, minutes, seconds) {
                 const paddedHours = String(hours).padStart(2, '0');
                 const paddedMinutes = String(minutes).padStart(2, '0');
                 const paddedSeconds = String(seconds).padStart(2, '0');
-                
+
                 updateDigit(digitalTimeElement.querySelector('.hour-tens'), paddedHours[0]);
                 updateDigit(digitalTimeElement.querySelector('.hour-ones'), paddedHours[1]);
                 updateDigit(digitalTimeElement.querySelector('.minute-tens'), paddedMinutes[0]);
@@ -304,7 +285,7 @@ public class ClockComponent extends Div {
                 updateDigit(digitalTimeElement.querySelector('.second-tens'), paddedSeconds[0]);
                 updateDigit(digitalTimeElement.querySelector('.second-ones'), paddedSeconds[1]);
             }
-                
+
             function updateDigit(digitElement, newValue) {
                 if (digitElement.textContent !== newValue) {
                     digitElement.classList.add('flip');
@@ -315,46 +296,46 @@ public class ClockComponent extends Div {
                     }, {once: true});
                 }
             }
-                
+
             function updateShadow(clock, hours) {
                 const angle = ((hours % 12) / 12) * 360;
                 const shadowX = Math.sin((angle * Math.PI) / 180) * 20;
                 const shadowY = -Math.cos((angle * Math.PI) / 180) * 20;
                 clock.style.boxShadow = `${shadowX}px ${shadowY}px 30px rgba(0, 0, 0, 0.3)`;
             }
-                
+
             function updateClocks() {
                 const now = new Date();
-                
+
                 // BST Time
                 const bstTime = new Date(now.toLocaleString("en-US", { timeZone: "Europe/London" }));
                 setClockHands('bst-clock', bstTime.getHours(), bstTime.getMinutes(), bstTime.getSeconds());
-                
+
                 // IST Time
                 const istTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
                 setClockHands('ist-clock', istTime.getHours(), istTime.getMinutes(), istTime.getSeconds());
-                
+
                 // UTC Time
                 const utcTime = new Date(now.toLocaleString("en-US", { timeZone: "UTC" }));
                 setClockHands('utc-clock', utcTime.getHours(), utcTime.getMinutes(), utcTime.getSeconds());
             }
-                
+
             setInterval(updateClocks, 1000);
             updateClocks(); // Initial call
-                
+
             // Mouseover animations
             const clockWrappers = document.querySelectorAll('.clock-wrapper');
-                
+
             clockWrappers.forEach(wrapper => {
                 wrapper.addEventListener('mouseenter', () => {
-                    // Animate expansion to scale 0.75 (reduced size by 50% from previous scale 1)
-                    gsap.to(wrapper, {scale: 0.75, duration: 0.5, ease: 'power2.out'});
+                    // Scale up slightly on hover
+                    gsap.to(wrapper, {scale: 1.1, duration: 0.5, ease: 'power2.out'});
                     gsap.to(wrapper.querySelector('.clock-content'), {opacity: 1, duration: 0.5, ease: 'power2.out'});
                 });
-                
+
                 wrapper.addEventListener('mouseleave', () => {
-                    // Animate collapse back to scale 0.5
-                    gsap.to(wrapper, {scale: 0.5, duration: 0.5, ease: 'power2.in'});
+                    // Return to original scale
+                    gsap.to(wrapper, {scale: 1, duration: 0.5, ease: 'power2.in'});
                     gsap.to(wrapper.querySelector('.clock-content'), {opacity: 0, duration: 0.5, ease: 'power2.in'});
                 });
             });
