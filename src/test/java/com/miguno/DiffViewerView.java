@@ -1,12 +1,16 @@
 package com.example.application.views;
 
+import com.google.gson.Gson;
 import com.vaadin.flow.component.ClientCallable;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H1;
+import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -14,6 +18,9 @@ import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
 import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.router.Route;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Route("diff-viewer")
 public class DiffViewerView extends VerticalLayout {
@@ -31,12 +38,19 @@ public class DiffViewerView extends VerticalLayout {
     private final IntegerField diffMaxChangesField = new IntegerField("Max Changes");
     private final IntegerField diffMaxLineLengthField = new IntegerField("Max Line Length");
 
+    // Fields for diagram stages
+    private int currentStage = 0;
+    private int totalStages;
+    private final List<String> stages = new ArrayList<>();
+    private Span progressIndicator;  // Instance variable
+
     public DiffViewerView() {
         H1 title = new H1("Enhanced Diff Viewer");
 
         configureComponents();
         configureLayout();
         configureListeners();
+        initializeDiagramStages();
         addRequiredResources();
 
         HorizontalLayout controlsLayout1 = new HorizontalLayout(compareButton, viewModeGroup, matchingSelect, diffStyleSelect);
@@ -53,8 +67,45 @@ public class DiffViewerView extends VerticalLayout {
         // Assign IDs to Div components
         diffOutput.setId("diffOutput");
 
+        // Create the "+" and "-" buttons with icons
+        Button plusButton = new Button(new Icon(VaadinIcon.PLUS));
+        plusButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        plusButton.addClickListener(event -> {
+            if (currentStage < totalStages - 1) {
+                currentStage++;
+                updateProgressIndicator();
+                renderMermaidDiagram();
+            } else {
+                Notification.show("Already at the final stage", 2000, Notification.Position.MIDDLE);
+            }
+        });
+        plusButton.getElement().setProperty("title", "Next Stage");
+
+        Button minusButton = new Button(new Icon(VaadinIcon.MINUS));
+        minusButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        minusButton.addClickListener(event -> {
+            if (currentStage > 0) {
+                currentStage--;
+                updateProgressIndicator();
+                renderMermaidDiagram();
+            } else {
+                Notification.show("Already at the initial stage", 2000, Notification.Position.MIDDLE);
+            }
+        });
+        minusButton.getElement().setProperty("title", "Previous Stage");
+
+        // Progress Indicator
+        progressIndicator = new Span();
+        updateProgressIndicator();
+
+        // Create a layout for the diagram controls
+        HorizontalLayout diagramControlsLayout = new HorizontalLayout(minusButton, plusButton, progressIndicator);
+        diagramControlsLayout.setDefaultVerticalComponentAlignment(Alignment.CENTER);
+        diagramControlsLayout.setPadding(true);
+        diagramControlsLayout.setSpacing(true);
+
         // Add all components to the view
-        add(title, input1, input2, controlsLayout1, controlsLayout2, diffOutput, mermaidDiagramDiv);
+        add(title, input1, input2, controlsLayout1, controlsLayout2, diffOutput, diagramControlsLayout, mermaidDiagramDiv);
     }
 
     private void configureComponents() {
@@ -100,10 +151,40 @@ public class DiffViewerView extends VerticalLayout {
         compareButton.addClickListener(e -> {
             generateDiffScript(input1.getValue(), input2.getValue());
 
-            // Generate a graph definition based on inputs
-            String graphDefinition = generateGraphDefinition(input1.getValue(), input2.getValue());
-            renderMermaidDiagram(graphDefinition);
+            // Reset to the first stage when new inputs are compared
+            currentStage = 0;
+            updateProgressIndicator();
+            renderMermaidDiagram();
         });
+    }
+
+    private void initializeDiagramStages() {
+        // Define your diagram stages here
+        stages.clear();
+        stages.add("""
+                   graph LR;
+                   A[Input 1];
+                   """);  // Stage 1
+
+        stages.add("""
+                   graph LR;
+                   A[Input 1]-->Comparison;
+                   """);  // Stage 2
+
+        stages.add("""
+                   graph LR;
+                   A[Input 1]-->Comparison;
+                   B[Input 2]-->Comparison;
+                   """);  // Stage 3
+
+        stages.add("""
+                   graph LR;
+                   A[Input 1]-->Comparison;
+                   B[Input 2]-->Comparison;
+                   Comparison-->Result[Diff Result];
+                   """);  // Stage 4
+
+        totalStages = stages.size();
     }
 
     private void addRequiredResources() {
@@ -111,19 +192,35 @@ public class DiffViewerView extends VerticalLayout {
         UI.getCurrent().getPage().addStyleSheet("https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css");
         UI.getCurrent().getPage().addJavaScript("https://cdn.jsdelivr.net/npm/diff/dist/diff.min.js");
         UI.getCurrent().getPage().addJavaScript("https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html-ui.min.js");
-        // Add Mermaid.js with callback
+        // Load Mermaid.js and svg-pan-zoom with callback
         UI.getCurrent().getPage().executeJs(
                 """
-                if (typeof mermaid === 'undefined') {
-                  var script = document.createElement('script');
-                  script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11.2.1/dist/mermaid.min.js';
-                  script.onload = function() {
-                    $0.$server.mermaidLoaded();
-                  };
-                  document.head.appendChild(script);
-                } else {
-                  $0.$server.mermaidLoaded();
-                }
+                (function() {
+                  function loadSvgPanZoom(callback) {
+                    if (typeof svgPanZoom === 'undefined') {
+                      var script = document.createElement('script');
+                      script.src = 'https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js';
+                      script.onload = callback;
+                      document.head.appendChild(script);
+                    } else {
+                      callback();
+                    }
+                  }
+                  if (typeof mermaid === 'undefined') {
+                    var script = document.createElement('script');
+                    script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11.2.1/dist/mermaid.min.js';
+                    script.onload = function() {
+                      loadSvgPanZoom(function() {
+                        $0.$server.mermaidLoaded();
+                      });
+                    };
+                    document.head.appendChild(script);
+                  } else {
+                    loadSvgPanZoom(function() {
+                      $0.$server.mermaidLoaded();
+                    });
+                  }
+                })();
                 """,
                 getElement()
         );
@@ -169,17 +266,8 @@ public class DiffViewerView extends VerticalLayout {
     }
 
     private void renderMermaidDiagram() {
-        String graphDefinition = """
-                graph LR;
-                A[Input 1]-->Comparison;
-                B[Input 2]-->Comparison;
-                Comparison-->Result[Diff Result];
-                """;
+        String graphDefinition = stages.get(currentStage);
 
-        renderMermaidDiagram(graphDefinition);
-    }
-
-    private void renderMermaidDiagram(String graphDefinition) {
         String jsCode = """
                 mermaid.initialize({ startOnLoad: false, securityLevel: 'loose' });
                 mermaid.render('mermaidGraph', $0).then(function(result) {
@@ -198,6 +286,33 @@ public class DiffViewerView extends VerticalLayout {
                             $1.$server.nodeClicked(nodeId);
                         });
                     });
+
+                    // Initialize or re-initialize pan and zoom
+                    (function() {
+                        // Destroy existing svg-pan-zoom instance if it exists
+                        if (window.svgPanZoomInstance) {
+                            window.svgPanZoomInstance.destroy();
+                            window.svgPanZoomInstance = null;
+                        }
+                        // Load svg-pan-zoom library if not already loaded
+                        function initPanZoom() {
+                            window.svgPanZoomInstance = svgPanZoom(svgElement, {
+                                controlIconsEnabled: false,
+                                zoomEnabled: true,
+                                panEnabled: true,
+                                fit: true,
+                                center: true
+                            });
+                        }
+                        if (typeof svgPanZoom === 'undefined') {
+                            var script = document.createElement('script');
+                            script.src = 'https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js';
+                            script.onload = initPanZoom;
+                            document.head.appendChild(script);
+                        } else {
+                            initPanZoom();
+                        }
+                    })();
                 }).catch(function(err) {
                     console.error('Error rendering Mermaid diagram:', err);
                 });
@@ -206,17 +321,8 @@ public class DiffViewerView extends VerticalLayout {
         UI.getCurrent().getPage().executeJs(jsCode, graphDefinition, getElement());
     }
 
-    private String generateGraphDefinition(String text1, String text2) {
-        // For demonstration, let's create a simple diagram that shows the lengths of the inputs
-        int length1 = text1.length();
-        int length2 = text2.length();
-
-        return String.format("""
-                graph LR;
-                Input1[Input 1 (%d chars)]-->Comparison;
-                Input2[Input 2 (%d chars)]-->Comparison;
-                Comparison-->Result[Diff Result];
-                """, length1, length2);
+    private void updateProgressIndicator() {
+        progressIndicator.setText("Stage " + (currentStage + 1) + " of " + totalStages);
     }
 
     @ClientCallable
