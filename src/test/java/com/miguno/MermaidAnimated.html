@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        #container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #mermaidInput {
+            width: 100%;
+            height: 100px;
+            margin-bottom: 20px;
+            font-family: monospace;
+        }
+        #mermaidOutput {
+            width: 100%;
+            background: #f5f5f5;
+            padding: 20px;
+            overflow: hidden; /* Prevent overflow of animations */
+        }
+        /* Enhanced CSS Specificity with !important */
+        circle.marker {
+            fill: #ff0000 !important; /* Force red fill */
+            stroke: #000000 !important; /* Ensure stroke is black */
+            stroke-width: 1 !important; /* Ensure stroke width is 1 unit */
+            visibility: hidden; /* Initially hidden */
+        }
+        .highlight {
+            stroke: #4CAF50 !important;
+            stroke-width: 3px !important;
+        }
+    </style>
+    <!-- Load Mermaid and GSAP libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/MotionPathPlugin.min.js"></script>
+</head>
+<body>
+    <div id="container">
+        <textarea id="mermaidInput">
+            flowchart TD
+                A[Start] --> B[Process 1]
+                A --> C[Process 2]
+                B --> D[End]
+                C --> D
+        </textarea>
+        <button onclick="updateDiagram()">Update Diagram</button>
+        <div id="mermaidOutput"></div>
+    </div>
+
+    <script>
+        // Register the GSAP MotionPathPlugin
+        gsap.registerPlugin(MotionPathPlugin);
+        // Initialize Mermaid
+        mermaid.initialize({ startOnLoad: true });
+
+        async function updateDiagram() {
+            // Clear previous animations
+            gsap.killTweensOf(".marker");
+            
+            // Get mermaid input and render
+            const input = document.getElementById('mermaidInput').value;
+            const output = document.getElementById('mermaidOutput');
+            output.innerHTML = '';
+            
+            try {
+                const { svg } = await mermaid.render('mermaidGraph', input);
+                output.innerHTML = svg;
+                
+                // Select the newly rendered SVG
+                const svgElement = output.querySelector('svg');
+                if (!svgElement) throw new Error("SVG not found in rendered output.");
+
+                console.log("SVG Element:", svgElement);
+
+                // Ensure SVG has proper namespaces
+                svgElement.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+
+                // Add animation marker
+                const marker = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                marker.setAttribute("class", "marker");
+                marker.setAttribute("cx", 0);
+                marker.setAttribute("cy", 0);
+                marker.setAttribute("r", 5); // Radius of the marker
+                marker.setAttribute("fill", "#ff0000"); // Set fill directly to red
+                marker.setAttribute("stroke", "#000000"); // Set stroke directly to black
+                marker.setAttribute("stroke-width", "1"); // Set stroke width directly
+                // Initially hide the marker
+                marker.style.visibility = "hidden";
+                svgElement.appendChild(marker);
+
+                console.log("Marker appended to SVG:", marker);
+
+                // Get all edge paths
+                const paths = Array.from(svgElement.querySelectorAll('path.edgePath, path:not(.arrowMarkerPath)'));
+                if (paths.length === 0) throw new Error("No paths found for animation.");
+
+                console.log(`Found ${paths.length} paths for animation.`);
+
+                // Create animation timeline
+                const tl = gsap.timeline({ repeat: -1 });
+
+                paths.forEach((path, index) => {
+                    tl.add(() => {
+                        // Show the marker
+                        marker.style.visibility = "visible";
+                        // Highlight the current path
+                        path.classList.add("highlight");
+                        //console.log(`Animating path ${index + 1}`);
+                    });
+
+                    tl.to(marker, {
+                        duration: 2, // Adjust duration as needed
+                        motionPath: {
+                            path: path,
+                            align: path,
+                            autoRotate: true,
+                            alignOrigin: [0.5, 0.5]
+                        },
+                        ease: "power1.inOut",
+                        onComplete: () => {
+                            // Remove the highlight after animation
+                            path.classList.remove("highlight");
+                            //console.log(`Completed animation for path ${index + 1}`);
+                        }
+                    });
+                });
+
+                // Hide the marker after the timeline completes
+                tl.set(marker, { visibility: "hidden" });
+
+                // Add node animations separately to prevent interference
+                const nodes = Array.from(svgElement.querySelectorAll('.node, .vertex')); // Adjust selectors based on actual SVG classes
+                console.log(`Found ${nodes.length} nodes for animation.`);
+                nodes.forEach((node) => {
+                    gsap.to(node, {
+                        duration: 0.6,
+                        scale: 1.2,
+                        transformOrigin: "center",
+                        yoyo: true,
+                        repeat: 1,
+                        ease: "power1.inOut"
+                    });
+                });
+
+            } catch (error) {
+                output.innerHTML = `<div style="color: red;">Error rendering diagram: ${error.message}</div>`;
+                console.error("Mermaid Rendering Error:", error);
+            }
+        }
+
+        // Initial render
+        updateDiagram();
+    </script>
+</body>
+</html>
