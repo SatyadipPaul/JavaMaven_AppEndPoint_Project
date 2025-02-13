@@ -225,7 +225,7 @@
   
   <script>
     $(document).ready(function() {
-      // Parse any embedded step data from the hidden element.
+      // Retrieve embedded step data.
       let embeddedDataEl = $('#embeddedData');
       let stepsData;
       try {
@@ -242,7 +242,7 @@
         embeddedDataEl.text(JSON.stringify(dataObj, null, 2));
       }
       
-      // Render each step as a collapsible details component.
+      // Render each step as a collapsible details element.
       function renderSteps() {
         let container = $('#stepList');
         container.find('details.step').remove();
@@ -303,6 +303,11 @@
           detailsElem.append(collapseContent);
           container.append(detailsElem);
         });
+        
+        // Reinitialize Lightbox to ensure that newly added image links work.
+        if (typeof lightbox !== 'undefined') {
+          lightbox.init();
+        }
       }
       
       // Initial render.
@@ -313,7 +318,6 @@
         let type = $(this).val();
         let container = $('#dynamicInput');
         container.empty();
-        
         if (type === 'text') {
           container.append('<label for="textInput">Text Content:</label><textarea id="textInput" rows="3" placeholder="Enter text content"></textarea>');
         }
@@ -365,7 +369,7 @@
         }
       }
       
-      // Handle form submission and attach the new step.
+      // Handle form submission—attach the new step.
       $('#stepForm').on('submit', function(e) {
         e.preventDefault();
         let type = $('#contentType').val();
@@ -430,7 +434,7 @@
         }
       });
       
-      // Handle downloading the updated HTML. Prompts for a new title.
+      // Download the updated HTML—prompt for a new title.
       $('#downloadBtn').on('click', function() {
         let newTitle = prompt("Enter a title for the HTML file:", document.title);
         if (newTitle) {
@@ -448,6 +452,18 @@
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
       });
+    });
+    
+    // Ensure that Lightbox is reinitialized when the entire window has finished loading.
+    $(window).on('load', function() {
+      if (typeof lightbox !== 'undefined') {
+        lightbox.option({
+          'resizeDuration': 200,
+          'wrapAround': true,
+          'alwaysShowNavOnTouchDevices': true
+        });
+        lightbox.init();
+      }
     });
   </script>
 </body>
