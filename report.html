@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <title>HTML Data Attachment Challenge</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  
+
   <!-- Lightbox2 CSS for image viewing -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.3/css/lightbox.min.css">
   <!-- Highlight.js CSS (using GitHub Dark Dimmed theme) for XML/JSON syntax highlighting -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github-dark-dimmed.min.css">
   
   <style>
-    /* Global styling and container definition */
+    /* Global styles and container setup */
     body {
       font-family: Arial, sans-serif;
       background: #f2f2f2;
@@ -62,7 +62,7 @@
     .step-list {
       margin-top: 30px;
     }
-    /* Style each step as a collapsible details component */
+    /* Each step is rendered as a collapsible details element */
     details.step {
       border: 1px solid #ddd;
       padding: 10px;
@@ -78,6 +78,7 @@
     .collapse-content {
       margin-top: 10px;
     }
+    /* Preformatted content for text and XML/JSON */
     .content-preview {
       max-height: 200px;
       overflow: auto;
@@ -88,6 +89,17 @@
       font-family: monospace;
       white-space: pre-wrap;
       word-wrap: break-word;
+    }
+    /* For ASCII content, we use pre with no word wrap */
+    .ascii-preview {
+      max-height: 200px;
+      overflow: auto;
+      background: #f9f9f9;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre;
     }
     .img-preview {
       max-height: 200px;
@@ -116,7 +128,7 @@
   <div class="container">
     <h1>Content Attachment Challenge</h1>
     
-    <!-- Form for adding a new step -->
+    <!-- Form for Adding a New Step -->
     <form id="stepForm">
       <label for="contentType">Select Content Type:</label>
       <select id="contentType" required>
@@ -126,9 +138,10 @@
         <option value="image">Image</option>
         <option value="xml">XML</option>
         <option value="json">JSON</option>
+        <option value="ascii">ASCII Content</option>
       </select>
       
-      <!-- Dynamic input field based on content type -->
+      <!-- Dynamic input field will be injected here based on selected type -->
       <div id="dynamicInput"></div>
       
       <label for="summary">Step Summary:</label>
@@ -140,7 +153,7 @@
       <button type="submit">Add Step</button>
     </form>
     
-    <!-- Section for downloading the updated HTML -->
+    <!-- Download Updated HTML Section -->
     <div class="download-section">
       <button id="downloadBtn">Download Updated HTML</button>
     </div>
@@ -148,10 +161,10 @@
     <!-- Steps List -->
     <div class="step-list" id="stepList">
       <h2>Steps:</h2>
-      <!-- Each step is rendered here as a collapsible section -->
+      <!-- Steps will be dynamically appended here as collapsible sections -->
     </div>
     
-    <!-- Hidden element to store embedded step data in JSON -->
+    <!-- Embedded Data stored as a JSON string -->
     <script id="embeddedData" type="application/json">
 {
   "steps": []
@@ -166,12 +179,12 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
   <!-- Highlight.js for syntax highlighting -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
-  <!-- Lightbox2 for interactive image viewing -->
+  <!-- Lightbox2 for image viewing -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.3/js/lightbox.min.js"></script>
   
   <script>
     $(document).ready(function() {
-      // Retrieve existing embedded JSON data on page load.
+      // Retrieve and parse any embedded step data.
       let embeddedDataEl = $('#embeddedData');
       let stepsData;
       try {
@@ -182,26 +195,24 @@
       }
       let steps = stepsData.steps;
       
-      // Update the embedded JSON element to reflect current steps.
+      // Update the hidden embedded JSON element.
       function updateEmbeddedData() {
         const dataObj = { steps: steps };
         embeddedDataEl.text(JSON.stringify(dataObj, null, 2));
       }
       
-      // Render each step as a collapsible <details> element.
+      // Render steps as collapsible details components.
       function renderSteps() {
         let container = $('#stepList');
         container.find('details.step').remove();
         steps.forEach((step, index) => {
           let detailsElem = $('<details class="step"></details>');
-          // The summary tag acts as the section header.
           detailsElem.append('<summary>Step ' + (index + 1) + ': ' + step.summary + '</summary>');
-          
           let collapseContent = $('<div class="collapse-content"></div>');
           collapseContent.append('<p><strong>Description:</strong> ' + step.description + '</p>');
           collapseContent.append('<p><strong>Type:</strong> ' + step.type.toUpperCase() + '</p>');
           
-          // Handle different content types.
+          // Render based on content type.
           if (step.type === 'image') {
             let link = $('<a></a>')
               .attr('href', step.content)
@@ -212,6 +223,7 @@
             collapseContent.append(link);
           }
           else if (step.type === 'csv') {
+            // Parse CSV text and render a table.
             let parsed = Papa.parse(step.content, { skipEmptyLines: true });
             let table = $('<table></table>');
             parsed.data.forEach(function(row) {
@@ -225,6 +237,7 @@
             collapseContent.append(table);
           }
           else if (step.type === 'xml' || step.type === 'json') {
+            // Format XML/JSON with syntax highlighting.
             let codeBlock = $('<code></code>');
             if (step.type === 'json') {
               codeBlock.addClass('language-json');
@@ -237,6 +250,11 @@
             collapseContent.append(preBlock);
             hljs.highlightElement(codeBlock[0]);
           }
+          else if (step.type === 'ascii') {
+            // Render ASCII content using a <pre> without word wrapping.
+            let pre = $('<pre class="ascii-preview"></pre>').text(step.content);
+            collapseContent.append(pre);
+          }
           else if (step.type === 'text') {
             let pre = $('<pre class="content-preview"></pre>').text(step.content);
             collapseContent.append(pre);
@@ -247,28 +265,72 @@
         });
       }
       
-      // Initial render if steps are stored.
+      // Initial render.
       renderSteps();
       
-      // Display the appropriate input field based on the selected content type.
+      // Update the dynamic input area depending on the selected content type.
       $('#contentType').on('change', function() {
         let type = $(this).val();
         let container = $('#dynamicInput');
         container.empty();
+        
+        // For types that support simple pasted input.
         if (type === 'text') {
           container.append('<label for="textInput">Text Content:</label><textarea id="textInput" rows="3" placeholder="Enter text content"></textarea>');
-        } else if (type === 'csv') {
-          container.append('<label for="csvInput">CSV File (Upload):</label><input type="file" id="csvInput" accept=".csv,text/csv">');
-        } else if (type === 'image') {
+        }
+        // For CSV, XML, JSON types: allow either file upload or direct paste.
+        else if (type === 'csv' || type === 'xml' || type === 'json') {
+          container.append(`
+            <div id="inputMethod">
+              <label>Input Method:</label><br>
+              <input type="radio" name="inputMethod" id="methodUpload" value="upload" checked>
+              <label for="methodUpload">Upload File</label>
+              <input type="radio" name="inputMethod" id="methodPaste" value="paste">
+              <label for="methodPaste">Paste Content</label>
+            </div>
+            <div id="contentInputContainer"></div>
+          `);
+          // Set the input field according to the default "upload" method.
+          updateMethodInput(type);
+          // Change input field when the method toggles.
+          $('input[name="inputMethod"]').on('change', function() {
+            updateMethodInput(type);
+          });
+        }
+        else if (type === 'ascii') {
+          container.append('<label for="asciiInput">ASCII Content:</label><textarea id="asciiInput" rows="5" placeholder="Paste ASCII content here"></textarea>');
+        }
+        else if (type === 'image') {
           container.append('<label for="imageInput">Image File (Upload):</label><input type="file" id="imageInput" accept="image/*">');
-        } else if (type === 'xml') {
-          container.append('<label for="xmlInput">XML File (Upload):</label><input type="file" id="xmlInput" accept=".xml,text/xml">');
-        } else if (type === 'json') {
-          container.append('<label for="jsonInput">JSON File (Upload):</label><input type="file" id="jsonInput" accept=".json,application/json">');
         }
       });
       
-      // Process the form submission and add a new step.
+      // Helper function to update input method area for CSV, XML, or JSON types.
+      function updateMethodInput(type) {
+        let method = $('input[name="inputMethod"]:checked').val();
+        let contentDiv = $('#contentInputContainer');
+        contentDiv.empty();
+        if(method === 'upload') {
+          if(type === 'csv'){
+            contentDiv.append('<label for="uploadedInput">Upload CSV File:</label><input type="file" id="uploadedInput" accept=".csv,text/csv">');
+          } else if(type === 'xml'){
+            contentDiv.append('<label for="uploadedInput">Upload XML File:</label><input type="file" id="uploadedInput" accept=".xml,text/xml">');
+          } else if(type === 'json'){
+            contentDiv.append('<label for="uploadedInput">Upload JSON File:</label><input type="file" id="uploadedInput" accept=".json,application/json">');
+          }
+        } 
+        else if(method === 'paste') {
+          if(type === 'csv'){
+            contentDiv.append('<label for="pastedInput">Paste CSV Content:</label><textarea id="pastedInput" rows="5" placeholder="Paste CSV content here"></textarea>');
+          } else if(type === 'xml'){
+            contentDiv.append('<label for="pastedInput">Paste XML Content:</label><textarea id="pastedInput" rows="5" placeholder="Paste XML content here"></textarea>');
+          } else if(type === 'json'){
+            contentDiv.append('<label for="pastedInput">Paste JSON Content:</label><textarea id="pastedInput" rows="5" placeholder="Paste JSON content here"></textarea>');
+          }
+        }
+      }
+      
+      // Handle form submission.
       $('#stepForm').on('submit', function(e) {
         e.preventDefault();
         let type = $('#contentType').val();
@@ -280,7 +342,6 @@
           return;
         }
         
-        // Once content is obtained, add it as a new step.
         function addStep(content) {
           let step = {
             type: type,
@@ -295,29 +356,47 @@
           $('#dynamicInput').empty();
         }
         
-        if (type === 'text') {
-          let textContent = $('#textInput').val();
-          addStep(textContent);
-        } else {
-          let inputId = '#' + type + 'Input';
-          let fileInput = $(inputId)[0];
+        if (type === 'text' || type === 'ascii') {
+          // For text and ASCII types, retrieve content from the corresponding textarea.
+          let elementId = (type === 'text') ? '#textInput' : '#asciiInput';
+          let content = $(elementId).val();
+          addStep(content);
+        }
+        else if (type === 'csv' || type === 'xml' || type === 'json') {
+          let method = $('input[name="inputMethod"]:checked').val();
+          if (method === 'upload') {
+            let fileInput = $('#uploadedInput')[0];
+            if (fileInput && fileInput.files && fileInput.files[0]) {
+              let file = fileInput.files[0];
+              let reader = new FileReader();
+              reader.onload = function(e) {
+                addStep(e.target.result);
+              };
+              reader.readAsText(file);
+            } else {
+              alert('Please select a file for the chosen content type.');
+            }
+          } else if (method === 'paste') {
+            let content = $('#pastedInput').val();
+            addStep(content);
+          }
+        }
+        else if (type === 'image') {
+          let fileInput = $('#imageInput')[0];
           if (fileInput && fileInput.files && fileInput.files[0]) {
             let file = fileInput.files[0];
             let reader = new FileReader();
             reader.onload = function(e) {
               addStep(e.target.result);
             };
-            if (type === 'image')
-              reader.readAsDataURL(file);
-            else
-              reader.readAsText(file);
+            reader.readAsDataURL(file);
           } else {
             alert('Please select a file for the chosen content type.');
           }
         }
       });
       
-      // Prompt for a new title before downloading and update the document.
+      // Download updated HTML with a prompted new title.
       $('#downloadBtn').on('click', function() {
         let newTitle = prompt("Enter a title for the HTML file:", document.title);
         if (newTitle) {
