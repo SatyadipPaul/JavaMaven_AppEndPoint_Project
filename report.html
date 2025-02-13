@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>HTML Data Attachment Challenge</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-
+  
   <!-- Lightbox2 CSS for image viewing -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.3/css/lightbox.min.css">
   <!-- Highlight.js CSS (using GitHub Dark Dimmed theme) for XML/JSON syntax highlighting -->
@@ -20,6 +20,7 @@
     .container {
       background: #fff;
       max-width: 800px;
+      width: 90%;
       margin: auto;
       padding: 20px;
       border-radius: 8px;
@@ -78,7 +79,7 @@
     .collapse-content {
       margin-top: 10px;
     }
-    /* Preformatted content for text and XML/JSON */
+    /* Preformatted content */
     .content-preview {
       max-height: 200px;
       overflow: auto;
@@ -90,7 +91,7 @@
       white-space: pre-wrap;
       word-wrap: break-word;
     }
-    /* For ASCII content, no word wrap is allowed */
+    /* For ASCII content, preserve spacing without word wrap */
     .ascii-preview {
       max-height: 200px;
       overflow: auto;
@@ -107,10 +108,16 @@
       cursor: pointer;
       margin-top: 10px;
     }
-    table {
+    /* CSV table container with horizontal scroll */
+    .table-container {
+      overflow-x: auto;
+      margin-top: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .table-container table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 10px;
     }
     table, th, td {
       border: 1px solid #ddd;
@@ -122,7 +129,7 @@
     .download-section {
       margin-top: 20px;
     }
-    /* Style for the toggle container used in CSV, XML, JSON */
+    /* Toggle style for Upload vs. Paste */
     .toggle-container {
       display: inline-block;
       border: 1px solid #ccc;
@@ -144,6 +151,17 @@
     .toggle-container input[type="radio"]:checked + label {
       background-color: #007BFF;
       color: white;
+    }
+    
+    /* Media Query Adjustments for Smaller Devices */
+    @media (max-width: 600px) {
+      .container {
+        width: 95%;
+        padding: 15px;
+      }
+      button {
+        width: 100%;
+      }
     }
   </style>
 </head>
@@ -187,7 +205,7 @@
       <!-- Steps will be dynamically appended here as collapsible sections -->
     </div>
     
-    <!-- Embedded Data stored as a JSON string -->
+    <!-- Embedded step data stored as a hidden JSON string -->
     <script id="embeddedData" type="application/json">
 {
   "steps": []
@@ -207,7 +225,7 @@
   
   <script>
     $(document).ready(function() {
-      // Parse any embedded step data on page load.
+      // Parse any embedded step data from the hidden element.
       let embeddedDataEl = $('#embeddedData');
       let stepsData;
       try {
@@ -224,7 +242,7 @@
         embeddedDataEl.text(JSON.stringify(dataObj, null, 2));
       }
       
-      // Render steps as collapsible details components.
+      // Render each step as a collapsible details component.
       function renderSteps() {
         let container = $('#stepList');
         container.find('details.step').remove();
@@ -235,7 +253,7 @@
           collapseContent.append('<p><strong>Description:</strong> ' + step.description + '</p>');
           collapseContent.append('<p><strong>Type:</strong> ' + step.type.toUpperCase() + '</p>');
           
-          // Render the content based on type.
+          // Render content based on type.
           if (step.type === 'image') {
             let link = $('<a></a>')
               .attr('href', step.content)
@@ -246,7 +264,6 @@
             collapseContent.append(link);
           }
           else if (step.type === 'csv') {
-            // CSV is parsed and rendered as an HTML table.
             let parsed = Papa.parse(step.content, { skipEmptyLines: true });
             let table = $('<table></table>');
             parsed.data.forEach(function(row) {
@@ -257,10 +274,11 @@
               });
               table.append(tr);
             });
-            collapseContent.append(table);
+            let tableContainer = $('<div class="table-container"></div>');
+            tableContainer.append(table);
+            collapseContent.append(tableContainer);
           }
           else if (step.type === 'xml' || step.type === 'json') {
-            // XML or JSON are rendered with syntax highlighting.
             let codeBlock = $('<code></code>');
             if (step.type === 'json') {
               codeBlock.addClass('language-json');
@@ -274,7 +292,6 @@
             hljs.highlightElement(codeBlock[0]);
           }
           else if (step.type === 'ascii') {
-            // ASCII content is rendered within a pre tag without word wrapping.
             let pre = $('<pre class="ascii-preview"></pre>').text(step.content);
             collapseContent.append(pre);
           }
@@ -300,7 +317,7 @@
         if (type === 'text') {
           container.append('<label for="textInput">Text Content:</label><textarea id="textInput" rows="3" placeholder="Enter text content"></textarea>');
         }
-        // For CSV, XML, or JSON, make upload and paste available via a toggle.
+        // For CSV, XML, or JSON, offer both upload and paste using a toggle.
         else if (type === 'csv' || type === 'xml' || type === 'json') {
           container.append(`
             <div id="inputMethod" class="toggle-container">
@@ -337,13 +354,12 @@
           } else if (type === 'json'){
             contentDiv.append('<label for="uploadedInput">Upload JSON File:</label><input type="file" id="uploadedInput" accept=".json,application/json">');
           }
-        } 
-        else if(method === 'paste') {
-          if(type === 'csv'){
+        } else if (method === 'paste') {
+          if (type === 'csv'){
             contentDiv.append('<label for="pastedInput">Paste CSV Content:</label><textarea id="pastedInput" rows="5" placeholder="Paste CSV content here"></textarea>');
-          } else if(type === 'xml'){
+          } else if (type === 'xml'){
             contentDiv.append('<label for="pastedInput">Paste XML Content:</label><textarea id="pastedInput" rows="5" placeholder="Paste XML content here"></textarea>');
-          } else if(type === 'json'){
+          } else if (type === 'json'){
             contentDiv.append('<label for="pastedInput">Paste JSON Content:</label><textarea id="pastedInput" rows="5" placeholder="Paste JSON content here"></textarea>');
           }
         }
