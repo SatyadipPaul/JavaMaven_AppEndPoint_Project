@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+      Apache ECharts Tree Chart – Optimized Tree Builder with Search & String Values
+    </title>
+    <!-- ECharts library from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+    <style>
+      /* Basic Reset and Background */
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background: #f5f5f7;
+      }
+      /* Header Styling (Mac‑OS inspired gradient) */
+      header {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        color: white;
+        padding: 1em 2em;
+        text-align: center;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      }
+      /* Main Container */
+      main {
+        padding: 2em;
+        max-width: 960px;
+        margin: 2em auto;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
+      }
+      h2 {
+        border-bottom: 1px solid #eee;
+        padding-bottom: 0.5em;
+        margin-top: 1em;
+        color: #333;
+      }
+      section#builderSection,
+      section#chartSection {
+        margin-bottom: 1.5em;
+      }
+      /* Chart container styling with iOS blue shadow for a floating card effect */
+      #chart {
+        width: 100%;
+        height: 500px;
+        border: none;
+        border-radius: 8px;
+        box-shadow: 0 8px 30px rgba(0, 122, 255, 0.2);
+        background: #fff;
+      }
+      /* Tree Builder Container */
+      #treeBuilderContainer {
+        border: 1px solid #ccc;
+        padding: 1em;
+        max-height: 300px;
+        overflow-y: auto;
+        background: #fafafa;
+        border-radius: 8px;
+      }
+      #treeBuilderContainer ul {
+        list-style: none;
+        padding-left: 20px;
+        border-left: 1px dashed #ddd;
+      }
+      #treeBuilderContainer li {
+        margin: 5px 0;
+      }
+      .node-label {
+        font-weight: 500;
+      }
+      /* Highlight for search matches */
+      .highlight {
+        background-color: #ffeb3b;
+        color: #333;
+      }
+      /* Button Styling */
+      button {
+        background-color: #f0f0f0;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        padding: 6px 12px;
+        font-size: 0.9em;
+        cursor: pointer;
+        transition: background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+      }
+      button:hover {
+        background-color: #007aff;
+        color: white;
+        box-shadow: 0 2px 4px rgba(0, 122, 255, 0.3);
+      }
+      /* Input Fields and Textarea */
+      input[type="text"],
+      input[type="number"],
+      textarea {
+        padding: 6px 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+      textarea {
+        resize: vertical;
+      }
+      /* Additional Layout */
+      .builder-controls {
+        margin-top: 1em;
+      }
+      #jsonContainer {
+        margin-top: 1em;
+      }
+      #jsonView {
+        width: 100%;
+        height: 150px;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+        font-family: monospace;
+      }
+      /* Forms and Search Section */
+      #rootAddForm {
+        margin-top: 0.5em;
+      }
+      #rootAddForm input {
+        margin-right: 5px;
+      }
+      #searchSection {
+        margin-top: 1em;
+      }
+      #searchSection input {
+        padding: 6px 8px;
+        margin-right: 5px;
+      }
+      /* Style adjustments for forms inside the tree builder */
+      .add-child-form,
+      .edit-node-form {
+        margin-top: 5px;
+      }
+      .add-child-form input,
+      .edit-node-form input {
+        margin-right: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>
+        Apache ECharts Tree Chart – Optimized Tree Builder with Search & String Values
+      </h1>
+      <p>
+        Build your tree using the builder below (or directly via JSON), then render,
+        collapse, delete, or search nodes. Only leaf nodes may have a "value" field,
+        and any value (number or string) is stored as a string.
+      </p>
+    </header>
+    <main>
+      <!-- Builder Section -->
+      <section id="builderSection">
+        <h2>Tree Builder</h2>
+        <!-- Add Root Node -->
+        <button id="addRootBtn">Add Root Node</button>
+        <div id="rootAddForm" style="display:none;">
+          <input type="text" id="rootNameInput" placeholder="Root node name" />
+          <!-- Using type="text" to allow any string as a value -->
+          <input type="text" id="rootValueInput" placeholder="Value (optional)" />
+          <button id="saveRootBtn">Save Root</button>
+          <button id="cancelRootBtn">Cancel</button>
+        </div>
+        <!-- Search Section -->
+        <div id="searchSection">
+          <input type="text" id="searchInput" placeholder="Search nodes by name" />
+          <button id="searchBtn">Search</button>
+          <button id="clearSearchBtn">Clear Search</button>
+        </div>
+        <!-- Scrollable Builder Container -->
+        <div id="treeBuilderContainer">
+          <p>No nodes. Click "Add Root Node" to begin.</p>
+        </div>
+        <!-- JSON source area (editable) -->
+        <button id="toggleJsonBtn">Show JSON Source</button>
+        <div id="jsonContainer" style="display: none;">
+          <textarea id="jsonView"></textarea>
+        </div>
+        <div id="message"></div>
+        <div class="builder-controls">
+          <button id="renderChartBtn">Render Chart</button>
+          <button id="collapseBtn">Collapse All</button>
+          <button id="resetBtn">Reset Builder</button>
+        </div>
+      </section>
+      <!-- Chart Section -->
+      <section id="chartSection">
+        <h2>Chart</h2>
+        <div id="chart"></div>
+      </section>
+    </main>
+    <script>
+      /**************************************************
+       * Global Variables and Initial Data
+       **************************************************/
+      let forestData = []; // The builder starts as a blank forest.
+      let nextId = 1; // Used for assigning unique IDs.
+      let currentSearchQuery = ""; // Global search term.
+      const myChart = echarts.init(document.getElementById("chart"));
+
+      /**************************************************
+       * Helper Functions for Data Manipulation
+       **************************************************/
+      function assignIds(node) {
+        node.id = nextId++;
+        if (!node.children) {
+          node.children = [];
+        }
+        if (node.children && node.children.length > 0) {
+          node.children.forEach((child) => assignIds(child));
+        }
+      }
+
+      // Assign unique IDs to every node in the forest.
+      function assignIdsToForest(forest) {
+        nextId = 1; // Reset counter.
+        forest.forEach((node) => assignIds(node));
+      }
+
+      // Recursive search for a node given an id.
+      function findNodeRecursive(node, id) {
+        if (node.id == id) return node;
+        if (node.children) {
+          for (let child of node.children) {
+            let found = findNodeRecursive(child, id);
+            if (found) return found;
+          }
+        }
+        return null;
+      }
+
+      // Loop through the forest to find a node.
+      function findNodeById(id) {
+        for (let node of forestData) {
+          let found = findNodeRecursive(node, id);
+          if (found) return found;
+        }
+        return null;
+      }
+
+      // Remove a node (by id) from the forest.
+      function removeNodeById(id) {
+        // Check at the root level.
+        let index = forestData.findIndex((node) => node.id == id);
+        if (index >= 0) {
+          forestData.splice(index, 1);
+          return true;
+        }
+        for (let node of forestData) {
+          if (removeNodeRecursive(node, id)) return true;
+        }
+        return false;
+      }
+
+      function removeNodeRecursive(node, id) {
+        if (node.children) {
+          let index = node.children.findIndex((child) => child.id == id);
+          if (index >= 0) {
+            node.children.splice(index, 1);
+            return true;
+          } else {
+            for (let child of node.children) {
+              if (removeNodeRecursive(child, id)) return true;
+            }
+          }
+        }
+        return false;
+      }
+
+      // Recursively collapse (hide) all subtrees.
+      function collapseSubtree(node) {
+        if (node.children && node.children.length > 0) {
+          node.children.forEach((child) => {
+            child.collapsed = true;
+            collapseSubtree(child);
+          });
+        }
+      }
+
+      // Mark all nodes (children of each root) as collapsed.
+      function collapseAll() {
+        forestData.forEach((root) => {
+          if (root.children) {
+            root.children.forEach((child) => {
+              child.collapsed = true;
+              collapseSubtree(child);
+            });
+          }
+        });
+        renderChart();
+        updateJsonView();
+      }
+
+      /**************************************************
+       * Search Functions
+       **************************************************/
+      function applySearchHighlight() {
+        const items = document.querySelectorAll("#treeBuilderContainer .node-label");
+        items.forEach((item) => {
+          if (
+            currentSearchQuery &&
+            item.textContent.toLowerCase().includes(currentSearchQuery.toLowerCase())
+          ) {
+            item.classList.add("highlight");
+          } else {
+            item.classList.remove("highlight");
+          }
+        });
+      }
+
+      /**************************************************
+       * UI Update Functions
+       **************************************************/
+      // Render a node and its children in the builder.
+      function renderTree(node) {
+        let displayValue =
+          node.value !== undefined &&
+          node.value !== null &&
+          node.value !== ""
+            ? " (" + node.value + ")"
+            : "";
+        let html = `<li data-id="${node.id}">
+          <span class="node-label">${node.name}${displayValue}</span>
+          <button class="add-child-btn" data-id="${node.id}">Add Child</button>
+          <button class="edit-node-btn" data-id="${node.id}">Edit</button>
+          <button class="delete-node-btn" data-id="${node.id}">Delete</button>
+          <div class="add-child-form" data-id="${node.id}" style="display:none;">
+            <input type="text" class="child-name-input" placeholder="Child node name" />
+            <!-- Using text input to support any string value -->
+            <input type="text" class="child-value-input" placeholder="Value (optional)" />
+            <button class="save-child-btn" data-id="${node.id}">Save</button>
+            <button class="cancel-add-btn" data-id="${node.id}">Cancel</button>
+          </div>
+          <div class="edit-node-form" data-id="${node.id}" style="display:none;">
+            <input type="text" class="edit-name-input" placeholder="Node name" />
+            <!-- Using text input to support any string value -->
+            <input type="text" class="edit-value-input" placeholder="Value (optional)" />
+            <button class="save-edit-btn" data-id="${node.id}">Save</button>
+            <button class="cancel-edit-btn" data-id="${node.id}">Cancel</button>
+          </div>`;
+        if (node.children && node.children.length > 0) {
+          html += "<ul>";
+          node.children.forEach((child) => {
+            html += renderTree(child);
+          });
+          html += "</ul>";
+        }
+        html += "</li>";
+        return html;
+      }
+
+      function updateTreeBuilder() {
+        const container = document.getElementById("treeBuilderContainer");
+        if (forestData.length === 0) {
+          container.innerHTML = '<p>No nodes. Click "Add Root Node" to begin.</p>';
+        } else {
+          let html = "<ul>";
+          forestData.forEach((root) => {
+            html += renderTree(root);
+          });
+          html += "</ul>";
+          container.innerHTML = html;
+        }
+        updateJsonView();
+        applySearchHighlight();
+      }
+
+      function updateJsonView() {
+        const jsonView = document.getElementById("jsonView");
+        jsonView.value = JSON.stringify(forestData, null, 2);
+      }
+
+      /**************************************************
+       * ECharts Rendering
+       **************************************************/
+      function renderChart() {
+        const option = {
+          tooltip: {
+            trigger: "item",
+            triggerOn: "mousemove",
+          },
+          series: [
+            {
+              type: "tree",
+              data: forestData,
+              top: "1%",
+              left: "7%",
+              bottom: "1%",
+              right: "20%",
+              symbolSize: 7,
+              label: {
+                position: "left",
+                verticalAlign: "middle",
+                align: "right",
+                fontSize: 9,
+              },
+              leaves: {
+                label: {
+                  position: "right",
+                  verticalAlign: "middle",
+                  align: "left",
+                },
+              },
+              emphasis: {
+                focus: "descendant",
+              },
+              expandAndCollapse: true,
+              animationDuration: 550,
+              animationDurationUpdate: 750,
+            },
+          ],
+        };
+        myChart.setOption(option);
+      }
+
+      /**************************************************
+       * JSON Source Handling
+       **************************************************/
+      // Update the builder from the JSON source.
+      function updateBuilderFromJson() {
+        const messageElem = document.getElementById("message");
+        messageElem.textContent = "";
+        let jsonText = document.getElementById("jsonView").value;
+        try {
+          const parsed = JSON.parse(jsonText);
+          // If the parsed JSON is an object, wrap it into an array.
+          if (!Array.isArray(parsed)) {
+            forestData = [parsed];
+          } else {
+            forestData = parsed;
+          }
+          // Re-assign unique IDs.
+          assignIdsToForest(forestData);
+          updateTreeBuilder();
+        } catch (error) {
+          messageElem.textContent = "Error: Invalid JSON data.";
+        }
+      }
+
+      /**************************************************
+       * Event Listeners
+       **************************************************/
+      // Add Root Node events.
+      document.getElementById("addRootBtn").addEventListener("click", function () {
+        document.getElementById("rootAddForm").style.display = "block";
+      });
+
+      document.getElementById("cancelRootBtn").addEventListener("click", function () {
+        document.getElementById("rootAddForm").style.display = "none";
+        document.getElementById("rootNameInput").value = "";
+        document.getElementById("rootValueInput").value = "";
+      });
+
+      document.getElementById("saveRootBtn").addEventListener("click", function () {
+        const name = document.getElementById("rootNameInput").value.trim();
+        const valueInput = document.getElementById("rootValueInput").value.trim();
+        if (name === "") {
+          alert("Please enter a valid root node name.");
+          return;
+        }
+        const newRoot = { name: name, children: [] };
+        if (valueInput !== "") {
+          newRoot.value = valueInput;
+        }
+        assignIds(newRoot);
+        forestData.push(newRoot);
+        updateTreeBuilder();
+        document.getElementById("rootAddForm").style.display = "none";
+        document.getElementById("rootNameInput").value = "";
+        document.getElementById("rootValueInput").value = "";
+      });
+
+      // Search events.
+      document.getElementById("searchBtn").addEventListener("click", function () {
+        currentSearchQuery = document.getElementById("searchInput").value.trim();
+        applySearchHighlight();
+      });
+
+      document.getElementById("clearSearchBtn").addEventListener("click", function () {
+        document.getElementById("searchInput").value = "";
+        currentSearchQuery = "";
+        applySearchHighlight();
+      });
+
+      // Delegate events in the tree builder container.
+      document
+        .getElementById("treeBuilderContainer")
+        .addEventListener("click", function (e) {
+          // Use closest() to ensure the actual button is detected.
+          const btn = e.target.closest("button");
+          if (!btn || !this.contains(btn)) return;
+          const id = btn.getAttribute("data-id");
+          if (!id) return;
+          const nodeId = parseInt(id);
+
+          // Add Child button.
+          if (btn.classList.contains("add-child-btn")) {
+            const formDiv = document.querySelector(
+              '.add-child-form[data-id="' + nodeId + '"]'
+            );
+            if (formDiv) {
+              formDiv.style.display = "block";
+            }
+          }
+          // Cancel Add Child.
+          else if (btn.classList.contains("cancel-add-btn")) {
+            const formDiv = document.querySelector(
+              '.add-child-form[data-id="' + nodeId + '"]'
+            );
+            if (formDiv) {
+              formDiv.style.display = "none";
+              const nameInput = formDiv.querySelector(".child-name-input");
+              const valueInput = formDiv.querySelector(".child-value-input");
+              if (nameInput) nameInput.value = "";
+              if (valueInput) valueInput.value = "";
+            }
+          }
+          // Save Child.
+          else if (btn.classList.contains("save-child-btn")) {
+            const formDiv = document.querySelector(
+              '.add-child-form[data-id="' + nodeId + '"]'
+            );
+            if (formDiv) {
+              const nameInput = formDiv.querySelector(".child-name-input");
+              const valueInput = formDiv.querySelector(".child-value-input");
+              const childName = nameInput.value.trim();
+              if (childName === "") {
+                alert("Please enter a valid child node name.");
+                return;
+              }
+              const childValue = valueInput.value.trim();
+              const parentNode = findNodeById(nodeId);
+              if (parentNode) {
+                const newChild = { name: childName, children: [] };
+                if (childValue !== "") {
+                  newChild.value = childValue;
+                }
+                assignIds(newChild);
+                if (!parentNode.children) {
+                  parentNode.children = [];
+                }
+                // Parent is no longer a leaf so remove its value.
+                if (parentNode.value !== undefined) {
+                  delete parentNode.value;
+                }
+                parentNode.children.push(newChild);
+                updateTreeBuilder();
+              }
+            }
+          }
+          // Edit Node button.
+          else if (btn.classList.contains("edit-node-btn")) {
+            const editForm = document.querySelector(
+              '.edit-node-form[data-id="' + nodeId + '"]'
+            );
+            if (editForm) {
+              const node = findNodeById(nodeId);
+              if (node) {
+                const nameInput = editForm.querySelector(".edit-name-input");
+                const valueInput = editForm.querySelector(".edit-value-input");
+                nameInput.value = node.name;
+                // Only prefill value if the node is a leaf.
+                valueInput.value =
+                  (!node.children || node.children.length === 0) && node.value !== undefined
+                    ? node.value
+                    : "";
+              }
+              editForm.style.display = "block";
+            }
+          }
+          // Cancel Edit Node.
+          else if (btn.classList.contains("cancel-edit-btn")) {
+            const editForm = document.querySelector(
+              '.edit-node-form[data-id="' + nodeId + '"]'
+            );
+            if (editForm) {
+              editForm.style.display = "none";
+              const nameInput = editForm.querySelector(".edit-name-input");
+              const valueInput = editForm.querySelector(".edit-value-input");
+              if (nameInput) nameInput.value = "";
+              if (valueInput) valueInput.value = "";
+            }
+          }
+          // Save Edit Node.
+          else if (btn.classList.contains("save-edit-btn")) {
+            const editForm = document.querySelector(
+              '.edit-node-form[data-id="' + nodeId + '"]'
+            );
+            if (editForm) {
+              const nameInput = editForm.querySelector(".edit-name-input");
+              const valueInput = editForm.querySelector(".edit-value-input");
+              const newName = nameInput.value.trim();
+              if (newName === "") {
+                alert("Please enter a valid name.");
+                return;
+              }
+              const newValueInput = valueInput.value.trim();
+              const node = findNodeById(nodeId);
+              if (node) {
+                node.name = newName;
+                // Only allow a value if the node is a leaf.
+                if (!node.children || node.children.length === 0) {
+                  if (newValueInput !== "") {
+                    node.value = newValueInput;
+                  } else {
+                    delete node.value;
+                  }
+                } else {
+                  delete node.value;
+                }
+                updateTreeBuilder();
+              }
+            }
+          }
+          // Delete Node.
+          else if (btn.classList.contains("delete-node-btn")) {
+            if (confirm("Are you sure you want to delete this node?")) {
+              removeNodeById(nodeId);
+              updateTreeBuilder();
+            }
+          }
+        });
+
+      // Toggle JSON source area.
+      document.getElementById("toggleJsonBtn").addEventListener("click", function () {
+        const jsonContainer = document.getElementById("jsonContainer");
+        if (jsonContainer.style.display === "none") {
+          jsonContainer.style.display = "block";
+          this.textContent = "Hide JSON Source";
+        } else {
+          jsonContainer.style.display = "none";
+          this.textContent = "Show JSON Source";
+        }
+      });
+
+      // When Render Chart is clicked, update the builder from the JSON source and render the chart.
+      document.getElementById("renderChartBtn").addEventListener("click", function () {
+        updateBuilderFromJson();
+        renderChart();
+      });
+
+      // Collapse All button.
+      document.getElementById("collapseBtn").addEventListener("click", function () {
+        collapseAll();
+      });
+
+      // Reset Builder button: clears the forest.
+      document.getElementById("resetBtn").addEventListener("click", function () {
+        if (confirm("Reset builder to blank? All changes will be lost.")) {
+          forestData = [];
+          updateTreeBuilder();
+          renderChart();
+        }
+      });
+
+      // Update builder if JSON source loses focus.
+      document.getElementById("jsonView").addEventListener("blur", function () {
+        updateBuilderFromJson();
+      });
+
+      // Update chart on window resize.
+      window.addEventListener("resize", function () {
+        myChart.resize();
+      });
+
+      /**************************************************
+       * Initial Render
+       **************************************************/
+      updateTreeBuilder();
+      renderChart();
+    </script>
+  </body>
+</html>
