@@ -5,8 +5,8 @@
   <title>HTML Data Attachment Challenge</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   
-  <!-- Lightbox2 CSS for image viewing -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.3/css/lightbox.min.css">
+  <!-- Viewerjs CSS for image viewing and zooming -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/viewerjs/1.11.3/viewer.min.css">
   <!-- Highlight.js CSS (using GitHub Dark Dimmed theme) for XML/JSON syntax highlighting -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github-dark-dimmed.min.css">
   
@@ -106,6 +106,10 @@
       max-height: 200px;
       display: block;
       cursor: pointer;
+      margin-top: 10px;
+    }
+    /* Image gallery container */
+    .image-container {
       margin-top: 10px;
     }
     /* CSV table container with horizontal scroll */
@@ -220,8 +224,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
   <!-- Highlight.js for syntax highlighting -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
-  <!-- Lightbox2 for image viewing -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.3/js/lightbox.min.js"></script>
+  <!-- Viewerjs for image viewing with zoom capabilities -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/viewerjs/1.11.3/viewer.min.js"></script>
   
   <script>
     $(document).ready(function() {
@@ -236,10 +240,52 @@
       }
       let steps = stepsData.steps;
       
+      // Store references to active image viewers
+      let imageViewers = [];
+      
       // Update the hidden embedded JSON element.
       function updateEmbeddedData() {
         const dataObj = { steps: steps };
         embeddedDataEl.text(JSON.stringify(dataObj, null, 2));
+      }
+      
+      // Initialize Viewer.js for images
+      function initializeImageViewers() {
+        // Destroy any existing viewers
+        imageViewers.forEach(viewer => {
+          if (viewer && typeof viewer.destroy === 'function') {
+            viewer.destroy();
+          }
+        });
+        imageViewers = [];
+        
+        // Initialize viewers for each image container
+        $('.image-container').each(function() {
+          const viewer = new Viewer(this, {
+            inline: false,
+            navbar: false,
+            button: true,
+            toolbar: {
+              zoomIn: 1,
+              zoomOut: 1, 
+              oneToOne: 1,
+              reset: 1,
+              prev: 0,
+              play: 0,
+              next: 0,
+              rotateLeft: 1,
+              rotateRight: 1,
+              flipHorizontal: 1,
+              flipVertical: 1,
+            },
+            title: false,
+            movable: true,
+            zoomRatio: 0.2,
+            minZoomRatio: 0.1,
+            maxZoomRatio: 10
+          });
+          imageViewers.push(viewer);
+        });
       }
       
       // Render each step as a collapsible details element.
@@ -255,13 +301,11 @@
           
           // Render content based on type.
           if (step.type === 'image') {
-            let link = $('<a></a>')
-              .attr('href', step.content)
-              .attr('data-lightbox', 'step-images')
-              .attr('data-title', step.summary);
+            // Create image container for Viewer.js
+            let imageContainer = $('<div class="image-container"></div>');
             let img = $('<img class="img-preview">').attr('src', step.content);
-            link.append(img);
-            collapseContent.append(link);
+            imageContainer.append(img);
+            collapseContent.append(imageContainer);
           }
           else if (step.type === 'csv') {
             let parsed = Papa.parse(step.content, { skipEmptyLines: true });
@@ -304,10 +348,8 @@
           container.append(detailsElem);
         });
         
-        // Reinitialize Lightbox to ensure that newly added image links work.
-        if (typeof lightbox !== 'undefined') {
-          lightbox.init();
-        }
+        // Initialize image viewers after rendering
+        initializeImageViewers();
       }
       
       // Initial render.
@@ -369,7 +411,7 @@
         }
       }
       
-      // Handle form submission—attach the new step.
+      // Handle form submission--attach the new step.
       $('#stepForm').on('submit', function(e) {
         e.preventDefault();
         let type = $('#contentType').val();
@@ -434,7 +476,7 @@
         }
       });
       
-      // Download the updated HTML—prompt for a new title.
+      // Download the updated HTML--prompt for a new title.
       $('#downloadBtn').on('click', function() {
         let newTitle = prompt("Enter a title for the HTML file:", document.title);
         if (newTitle) {
@@ -452,18 +494,531 @@
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
       });
+      
+      // Initialize image viewers when summary sections are expanded
+      $(document).on('click', 'details.step summary', function() {
+        const details = $(this).parent('details');
+        if (details.prop('open')) {
+          // If closing, no need to initialize
+          return;
+        }
+        // Give a slight delay to ensure DOM is updated
+        setTimeout(function() {
+          initializeImageViewers();
+        }, 100);
+      });
     });
+  </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>HTML Data Attachment Challenge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+  <!-- Viewerjs CSS for image viewing and zooming -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/viewerjs/1.11.3/viewer.min.css">
+  <!-- Highlight.js CSS (using GitHub Dark Dimmed theme) for XML/JSON syntax highlighting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github-dark-dimmed.min.css">
+  
+  <style>
+    /* Global styles and container setup */
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f2f2;
+      margin: 20px;
+    }
+    .container {
+      background: #fff;
+      max-width: 800px;
+      width: 90%;
+      margin: auto;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    }
+    h1, h2, h3 {
+      color: #333;
+    }
+    label {
+      display: block;
+      margin-top: 12px;
+      font-weight: bold;
+    }
+    input[type="text"],
+    textarea,
+    select {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+    textarea {
+      resize: vertical;
+    }
+    button {
+      margin-top: 15px;
+      background-color: #007BFF;
+      color: #fff;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    .step-list {
+      margin-top: 30px;
+    }
+    /* Each step is rendered as a collapsible details element */
+    details.step {
+      border: 1px solid #ddd;
+      padding: 10px;
+      margin-top: 15px;
+      background: #fafafa;
+      border-radius: 4px;
+    }
+    details.step summary {
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .collapse-content {
+      margin-top: 10px;
+    }
+    /* Preformatted content */
+    .content-preview {
+      max-height: 200px;
+      overflow: auto;
+      background: #f9f9f9;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    /* For ASCII content, preserve spacing without word wrap */
+    .ascii-preview {
+      max-height: 200px;
+      overflow: auto;
+      background: #f9f9f9;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre;
+    }
+    .img-preview {
+      max-height: 200px;
+      display: block;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    /* Image gallery container */
+    .image-container {
+      margin-top: 10px;
+    }
+    /* CSV table container with horizontal scroll */
+    .table-container {
+      overflow-x: auto;
+      margin-top: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .table-container table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    table, th, td {
+      border: 1px solid #ddd;
+    }
+    th, td {
+      padding: 8px;
+      text-align: left;
+    }
+    .download-section {
+      margin-top: 20px;
+    }
+    /* Toggle style for Upload vs. Paste */
+    .toggle-container {
+      display: inline-block;
+      border: 1px solid #ccc;
+      border-radius: 20px;
+      overflow: hidden;
+      margin: 10px 0;
+    }
+    .toggle-container input[type="radio"] {
+      display: none;
+    }
+    .toggle-container label {
+      display: inline-block;
+      padding: 5px 15px;
+      margin: 0;
+      cursor: pointer;
+      background-color: #f2f2f2;
+      color: #333;
+    }
+    .toggle-container input[type="radio"]:checked + label {
+      background-color: #007BFF;
+      color: white;
+    }
     
-    // Ensure that Lightbox is reinitialized when the entire window has finished loading.
-    $(window).on('load', function() {
-      if (typeof lightbox !== 'undefined') {
-        lightbox.option({
-          'resizeDuration': 200,
-          'wrapAround': true,
-          'alwaysShowNavOnTouchDevices': true
-        });
-        lightbox.init();
+    /* Media Query Adjustments for Smaller Devices */
+    @media (max-width: 600px) {
+      .container {
+        width: 95%;
+        padding: 15px;
       }
+      button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Content Attachment Challenge</h1>
+    
+    <!-- Form for Adding a New Step -->
+    <form id="stepForm">
+      <label for="contentType">Select Content Type:</label>
+      <select id="contentType" required>
+        <option value="">--Select Type--</option>
+        <option value="text">Text</option>
+        <option value="csv">CSV</option>
+        <option value="image">Image</option>
+        <option value="xml">XML</option>
+        <option value="json">JSON</option>
+        <option value="ascii">ASCII Content</option>
+      </select>
+      
+      <!-- Dynamic input field inserted here based on the selected type -->
+      <div id="dynamicInput"></div>
+      
+      <label for="summary">Step Summary:</label>
+      <input type="text" id="summary" placeholder="Enter a brief summary" required>
+      
+      <label for="description">Step Description:</label>
+      <textarea id="description" rows="3" placeholder="Enter a detailed description" required></textarea>
+      
+      <button type="submit">Add Step</button>
+    </form>
+    
+    <!-- Download Updated HTML Section -->
+    <div class="download-section">
+      <button id="downloadBtn">Download Updated HTML</button>
+    </div>
+    
+    <!-- Steps List -->
+    <div class="step-list" id="stepList">
+      <h2>Steps:</h2>
+      <!-- Steps will be dynamically appended here as collapsible sections -->
+    </div>
+    
+    <!-- Embedded step data stored as a hidden JSON string -->
+    <script id="embeddedData" type="application/json">
+{
+  "steps": []
+}
+    </script>
+  </div>
+  
+  <!-- CDN Libraries -->
+  <!-- jQuery for DOM manipulation -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <!-- PapaParse for CSV parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+  <!-- Highlight.js for syntax highlighting -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+  <!-- Viewerjs for image viewing with zoom capabilities -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/viewerjs/1.11.3/viewer.min.js"></script>
+  
+  <script>
+    $(document).ready(function() {
+      // Retrieve embedded step data.
+      let embeddedDataEl = $('#embeddedData');
+      let stepsData;
+      try {
+        stepsData = JSON.parse(embeddedDataEl.text());
+        if (!stepsData.steps) { stepsData = { steps: [] }; }
+      } catch (error) {
+        stepsData = { steps: [] };
+      }
+      let steps = stepsData.steps;
+      
+      // Store references to active image viewers
+      let imageViewers = [];
+      
+      // Update the hidden embedded JSON element.
+      function updateEmbeddedData() {
+        const dataObj = { steps: steps };
+        embeddedDataEl.text(JSON.stringify(dataObj, null, 2));
+      }
+      
+      // Initialize Viewer.js for images
+      function initializeImageViewers() {
+        // Destroy any existing viewers
+        imageViewers.forEach(viewer => {
+          if (viewer && typeof viewer.destroy === 'function') {
+            viewer.destroy();
+          }
+        });
+        imageViewers = [];
+        
+        // Initialize viewers for each image container
+        $('.image-container').each(function() {
+          const viewer = new Viewer(this, {
+            inline: false,
+            navbar: false,
+            button: true,
+            toolbar: {
+              zoomIn: 1,
+              zoomOut: 1, 
+              oneToOne: 1,
+              reset: 1,
+              prev: 0,
+              play: 0,
+              next: 0,
+              rotateLeft: 1,
+              rotateRight: 1,
+              flipHorizontal: 1,
+              flipVertical: 1,
+            },
+            title: false,
+            movable: true,
+            zoomRatio: 0.2,
+            minZoomRatio: 0.1,
+            maxZoomRatio: 10
+          });
+          imageViewers.push(viewer);
+        });
+      }
+      
+      // Render each step as a collapsible details element.
+      function renderSteps() {
+        let container = $('#stepList');
+        container.find('details.step').remove();
+        steps.forEach((step, index) => {
+          let detailsElem = $('<details class="step"></details>');
+          detailsElem.append('<summary>Step ' + (index + 1) + ': ' + step.summary + '</summary>');
+          let collapseContent = $('<div class="collapse-content"></div>');
+          collapseContent.append('<p><strong>Description:</strong> ' + step.description + '</p>');
+          collapseContent.append('<p><strong>Type:</strong> ' + step.type.toUpperCase() + '</p>');
+          
+          // Render content based on type.
+          if (step.type === 'image') {
+            // Create image container for Viewer.js
+            let imageContainer = $('<div class="image-container"></div>');
+            let img = $('<img class="img-preview">').attr('src', step.content);
+            imageContainer.append(img);
+            collapseContent.append(imageContainer);
+          }
+          else if (step.type === 'csv') {
+            let parsed = Papa.parse(step.content, { skipEmptyLines: true });
+            let table = $('<table></table>');
+            parsed.data.forEach(function(row) {
+              let tr = $('<tr></tr>');
+              row.forEach(function(cell) {
+                let td = $('<td></td>').text(cell);
+                tr.append(td);
+              });
+              table.append(tr);
+            });
+            let tableContainer = $('<div class="table-container"></div>');
+            tableContainer.append(table);
+            collapseContent.append(tableContainer);
+          }
+          else if (step.type === 'xml' || step.type === 'json') {
+            let codeBlock = $('<code></code>');
+            if (step.type === 'json') {
+              codeBlock.addClass('language-json');
+            } else {
+              codeBlock.addClass('language-xml');
+            }
+            codeBlock.text(step.content);
+            let preBlock = $('<pre></pre>');
+            preBlock.append(codeBlock);
+            collapseContent.append(preBlock);
+            hljs.highlightElement(codeBlock[0]);
+          }
+          else if (step.type === 'ascii') {
+            let pre = $('<pre class="ascii-preview"></pre>').text(step.content);
+            collapseContent.append(pre);
+          }
+          else if (step.type === 'text') {
+            let pre = $('<pre class="content-preview"></pre>').text(step.content);
+            collapseContent.append(pre);
+          }
+          
+          detailsElem.append(collapseContent);
+          container.append(detailsElem);
+        });
+        
+        // Initialize image viewers after rendering
+        initializeImageViewers();
+      }
+      
+      // Initial render.
+      renderSteps();
+      
+      // Update the dynamic input area based on the selected content type.
+      $('#contentType').on('change', function() {
+        let type = $(this).val();
+        let container = $('#dynamicInput');
+        container.empty();
+        if (type === 'text') {
+          container.append('<label for="textInput">Text Content:</label><textarea id="textInput" rows="3" placeholder="Enter text content"></textarea>');
+        }
+        // For CSV, XML, or JSON, offer both upload and paste using a toggle.
+        else if (type === 'csv' || type === 'xml' || type === 'json') {
+          container.append(`
+            <div id="inputMethod" class="toggle-container">
+              <input type="radio" name="inputMethod" id="methodUpload" value="upload" checked>
+              <label for="methodUpload">Upload File</label>
+              <input type="radio" name="inputMethod" id="methodPaste" value="paste">
+              <label for="methodPaste">Paste Content</label>
+            </div>
+            <div id="contentInputContainer"></div>
+          `);
+          updateMethodInput(type);
+          $('input[name="inputMethod"]').on('change', function() {
+            updateMethodInput(type);
+          });
+        }
+        else if (type === 'ascii') {
+          container.append('<label for="asciiInput">ASCII Content:</label><textarea id="asciiInput" rows="5" placeholder="Paste ASCII content here"></textarea>');
+        }
+        else if (type === 'image') {
+          container.append('<label for="imageInput">Image File (Upload):</label><input type="file" id="imageInput" accept="image/*">');
+        }
+      });
+      
+      // Helper function to update the input area for CSV, XML, or JSON.
+      function updateMethodInput(type) {
+        let method = $('input[name="inputMethod"]:checked').val();
+        let contentDiv = $('#contentInputContainer');
+        contentDiv.empty();
+        if (method === 'upload') {
+          if (type === 'csv'){
+            contentDiv.append('<label for="uploadedInput">Upload CSV File:</label><input type="file" id="uploadedInput" accept=".csv,text/csv">');
+          } else if (type === 'xml'){
+            contentDiv.append('<label for="uploadedInput">Upload XML File:</label><input type="file" id="uploadedInput" accept=".xml,text/xml">');
+          } else if (type === 'json'){
+            contentDiv.append('<label for="uploadedInput">Upload JSON File:</label><input type="file" id="uploadedInput" accept=".json,application/json">');
+          }
+        } else if (method === 'paste') {
+          if (type === 'csv'){
+            contentDiv.append('<label for="pastedInput">Paste CSV Content:</label><textarea id="pastedInput" rows="5" placeholder="Paste CSV content here"></textarea>');
+          } else if (type === 'xml'){
+            contentDiv.append('<label for="pastedInput">Paste XML Content:</label><textarea id="pastedInput" rows="5" placeholder="Paste XML content here"></textarea>');
+          } else if (type === 'json'){
+            contentDiv.append('<label for="pastedInput">Paste JSON Content:</label><textarea id="pastedInput" rows="5" placeholder="Paste JSON content here"></textarea>');
+          }
+        }
+      }
+      
+      // Handle form submission--attach the new step.
+      $('#stepForm').on('submit', function(e) {
+        e.preventDefault();
+        let type = $('#contentType').val();
+        let summary = $('#summary').val().trim();
+        let description = $('#description').val().trim();
+        
+        if (!type || !summary || !description) {
+          alert('Please fill in all required fields!');
+          return;
+        }
+        
+        function addStep(content) {
+          let step = {
+            type: type,
+            summary: summary,
+            description: description,
+            content: content
+          };
+          steps.push(step);
+          updateEmbeddedData();
+          renderSteps();
+          $('#stepForm')[0].reset();
+          $('#dynamicInput').empty();
+        }
+        
+        if (type === 'text' || type === 'ascii') {
+          let elementId = (type === 'text') ? '#textInput' : '#asciiInput';
+          let content = $(elementId).val();
+          addStep(content);
+        }
+        else if (type === 'csv' || type === 'xml' || type === 'json') {
+          let method = $('input[name="inputMethod"]:checked').val();
+          if (method === 'upload') {
+            let fileInput = $('#uploadedInput')[0];
+            if (fileInput && fileInput.files && fileInput.files[0]) {
+              let file = fileInput.files[0];
+              let reader = new FileReader();
+              reader.onload = function(e) {
+                addStep(e.target.result);
+              };
+              reader.readAsText(file);
+            } else {
+              alert('Please select a file for the chosen content type.');
+            }
+          } else if (method === 'paste') {
+            let content = $('#pastedInput').val();
+            addStep(content);
+          }
+        }
+        else if (type === 'image') {
+          let fileInput = $('#imageInput')[0];
+          if (fileInput && fileInput.files && fileInput.files[0]) {
+            let file = fileInput.files[0];
+            let reader = new FileReader();
+            reader.onload = function(e) {
+              addStep(e.target.result);
+            };
+            reader.readAsDataURL(file);
+          } else {
+            alert('Please select a file for the chosen content type.');
+          }
+        }
+      });
+      
+      // Download the updated HTML--prompt for a new title.
+      $('#downloadBtn').on('click', function() {
+        let newTitle = prompt("Enter a title for the HTML file:", document.title);
+        if (newTitle) {
+          document.title = newTitle;
+          $('title').text(newTitle);
+        }
+        let htmlContent = document.documentElement.outerHTML;
+        let blob = new Blob([htmlContent], { type: 'text/html' });
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement('a');
+        a.href = url;
+        a.download = 'updated_content.html';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+      
+      // Initialize image viewers when summary sections are expanded
+      $(document).on('click', 'details.step summary', function() {
+        const details = $(this).parent('details');
+        if (details.prop('open')) {
+          // If closing, no need to initialize
+          return;
+        }
+        // Give a slight delay to ensure DOM is updated
+        setTimeout(function() {
+          initializeImageViewers();
+        }, 100);
+      });
     });
   </script>
 </body>
