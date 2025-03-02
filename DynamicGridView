@@ -1,0 +1,73 @@
+package com.example.dynamicgrid;
+
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.textfield.TextArea;
+import com.vaadin.flow.router.Route;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.util.Map;
+
+@Route("dynamic-grid")
+public class DynamicGridView extends VerticalLayout {
+
+    private final DynamicQueryGridService gridService;
+    
+    private TextArea queryInput;
+    private Button executeButton;
+    private VerticalLayout gridContainer;
+    
+    @Autowired
+    public DynamicGridView(DynamicQueryGridService gridService) {
+        this.gridService = gridService;
+        
+        setSizeFull();
+        setPadding(true);
+        setSpacing(true);
+        
+        setupComponents();
+    }
+    
+    private void setupComponents() {
+        queryInput = new TextArea("SQL Query");
+        queryInput.setPlaceholder("Enter your SQL query here...");
+        queryInput.setWidth("100%");
+        queryInput.setHeight("150px");
+        queryInput.setValue("SELECT * FROM users");
+        
+        executeButton = new Button("Execute Query", e -> executeQuery());
+        
+        gridContainer = new VerticalLayout();
+        gridContainer.setSizeFull();
+        gridContainer.setPadding(false);
+        
+        add(queryInput, executeButton, gridContainer);
+    }
+    
+    private void executeQuery() {
+        String query = queryInput.getValue();
+        
+        if (query == null || query.trim().isEmpty()) {
+            Notification.show("Please enter a valid SQL query");
+            return;
+        }
+        
+        try {
+            // Clear previous grid
+            gridContainer.removeAll();
+            
+            // Create new dynamic grid
+            Grid<Map<String, Object>> grid = gridService.createDynamicGrid(query);
+            grid.setSizeFull();
+            
+            // Add to container
+            gridContainer.add(grid);
+            
+            Notification.show("Query executed successfully");
+        } catch (Exception ex) {
+            Notification.show("Error executing query: " + ex.getMessage());
+        }
+    }
+}
