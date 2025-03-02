@@ -1,0 +1,317 @@
+package com.example.dynamicgrid;
+
+import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.grid.GridVariant;
+import com.vaadin.flow.data.provider.CallbackDataProvider;
+import com.vaadin.flow.data.provider.DataProvider;
+import com.vaadin.flow.data.provider.QuerySortOrder;
+import com.vaadin.flow.data.provider.SortDirection;
+import com.vaadin.flow.data.renderer.NumberRenderer;
+import com.vaadin.flow.data.renderer.LocalDateRenderer;
+import com.vaadin.flow.data.renderer.LocalDateTimeRenderer;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Types;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+@Service
+public class DynamicQueryGridService {
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+    
+    // Record definitions for immutable data structures
+    public record ColumnMetadata(
+            String name,
+            String label,
+            int sqlType,
+            boolean nullable,
+            Class<?> javaType) {}
+    
+    public record QueryResult(
+            List<ColumnMetadata> columns,
+            List<Map<String, Object>> rows,
+            int totalCount) {}
+    
+    /**
+     * Creates a dynamic Grid based on an SQL query with lazy loading.
+     * 
+     * @param sqlQuery The SQL query to execute
+     * @return A configured Vaadin Grid
+     */
+    public Grid<Map<String, Object>> createDynamicGrid(String sqlQuery) {
+        // Step 1: Get column metadata from the query
+        List<ColumnMetadata> columns = getColumnMetadata(sqlQuery);
+        
+        // Step 2: Create a grid with lazy loading data provider
+        Grid<Map<String, Object>> grid = new Grid<>();
+        grid.addThemeVariants(GridVariant.LUMO_ROW_STRIPES, GridVariant.LUMO_COLUMN_BORDERS);
+        
+        // Step 3: Add columns with appropriate renderers based on data types
+        addColumnsToGrid(grid, columns);
+        
+        // Step 4: Configure lazy loading data provider
+        configureLazyDataProvider(grid, sqlQuery, columns);
+        
+        return grid;
+    }
+    
+    /**
+     * Gets column metadata from the query by executing a limited query.
+     */
+    private List<ColumnMetadata> getColumnMetadata(String sqlQuery) {
+        List<ColumnMetadata> columns = new ArrayList<>();
+        
+        // Execute query with limit 0 to just get metadata
+        String metadataQuery = sqlQuery.toLowerCase().contains("limit") ? 
+            sqlQuery : sqlQuery + " LIMIT 0";
+            
+        jdbcTemplate.query(metadataQuery, rs -> {
+            ResultSetMetaData metaData = rs.getMetaData();
+            int columnCount = metaData.getColumnCount();
+            
+            for (int i = 1; i <= columnCount; i++) {
+                String name = metaData.getColumnName(i);
+                String label = metaData.getColumnLabel(i);
+                int sqlType = metaData.getColumnType(i);
+                boolean nullable = metaData.isNullable(i) == ResultSetMetaData.columnNullable;
+                Class<?> javaType = mapSqlTypeToJavaType(sqlType);
+                
+                columns.add(new ColumnMetadata(name, label, sqlType, nullable, javaType));
+            }
+        });
+        
+        return columns;
+    }
+    
+    /**
+     * Maps SQL type to Java type.
+     */
+    private Class<?> mapSqlTypeToJavaType(int sqlType) {
+        return switch (sqlType) {
+            case Types.CHAR, Types.VARCHAR, Types.LONGVARCHAR, Types.NCHAR, 
+                 Types.NVARCHAR, Types.LONGNVARCHAR, Types.CLOB, Types.NCLOB -> String.class;
+            case Types.NUMERIC, Types.DECIMAL -> BigDecimal.class;
+            case Types.BIT, Types.BOOLEAN -> Boolean.class;
+            case Types.TINYINT, Types.SMALLINT, Types.INTEGER -> Integer.class;
+            case Types.BIGINT -> Long.class;
+            case Types.REAL, Types.FLOAT, Types.DOUBLE -> Double.class;
+            case Types.BINARY, Types.VARBINARY, Types.LONGVARBINARY, Types.BLOB -> byte[].class;
+            case Types.DATE -> LocalDate.class;
+            case Types.TIME, Types.TIMESTAMP -> LocalDateTime.class;
+            default -> Object.class;
+        };
+    }
+    
+    /**
+     * Adds columns to the grid with appropriate renderers based on data types.
+     */
+    private void addColumnsToGrid(Grid<Map<String, Object>> grid, List<ColumnMetadata> columns) {
+        for (ColumnMetadata col : columns) {
+            Grid.Column<Map<String, Object>> column;
+            
+            // Apply different renderers based on data type
+            if (col.javaType() == LocalDate.class) {
+                column = grid.addColumn(new LocalDateRenderer<>(
+                    item -> (LocalDate) item.get(col.name()),
+                    DateTimeFormatter.ofPattern("MM/dd/yyyy")
+                ));
+            } else if (col.javaType() == LocalDateTime.class) {
+                column = grid.addColumn(new LocalDateTimeRenderer<>(
+                    item -> (LocalDateTime) item.get(col.name()),
+                    DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss")
+                ));
+            } else if (col.javaType() == BigDecimal.class || 
+                       col.javaType() == Double.class || 
+                       col.javaType() == Float.class) {
+                column = grid.addColumn(new NumberRenderer<>(
+                    item -> item.get(col.name()) instanceof Number n ? n.doubleValue() : 0.0,
+                    "%.2f"
+                ));
+            } else {
+                // Default renderer with null handling
+                column = grid.addColumn(item -> {
+                    Object value = item.get(col.name());
+                    return value != null ? value.toString() : "";
+                });
+            }
+            
+            // Configure column properties
+            column.setHeader(formatColumnHeader(col.label()))
+                  .setKey(col.name())
+                  .setSortable(true)
+                  .setResizable(true);
+        }
+    }
+    
+    /**
+     * Formats a database column name into a readable header.
+     */
+    private String formatColumnHeader(String dbColumnName) {
+        return Arrays.stream(dbColumnName.replace("_", " ").split("\\s+"))
+                .map(word -> word.substring(0, 1).toUpperCase() + word.substring(1).toLowerCase())
+                .collect(Collectors.joining(" "));
+    }
+    
+    /**
+     * Configures a lazy loading data provider for the grid.
+     */
+    private void configureLazyDataProvider(Grid<Map<String, Object>> grid, 
+                                           String baseQuery, 
+                                           List<ColumnMetadata> columns) {
+        // Create thread pool for concurrent fetching using virtual threads (JDK 21)
+        ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+        
+        DataProvider<Map<String, Object>, Void> dataProvider = DataProvider.fromCallbacks(
+            // First callback: Fetch items for the current page
+            query -> {
+                int offset = query.getOffset();
+                int limit = query.getLimit();
+                
+                // Handle sorting
+                List<QuerySortOrder> sortOrders = query.getSortOrders();
+                String orderByClause = buildOrderByClause(sortOrders);
+                
+                // Build the final query with pagination and sorting
+                String finalQuery = applyPaginationAndSorting(baseQuery, orderByClause, limit, offset);
+                
+                // Fetch data using JDBC template
+                List<Map<String, Object>> results = fetchData(finalQuery, columns);
+                
+                return results.stream();
+            },
+            // Second callback: Count total results for pagination
+            query -> countTotalResults(baseQuery)
+        );
+        
+        grid.setDataProvider(dataProvider);
+    }
+    
+    /**
+     * Builds an ORDER BY clause from Vaadin sort orders.
+     */
+    private String buildOrderByClause(List<QuerySortOrder> sortOrders) {
+        if (sortOrders.isEmpty()) {
+            return "";
+        }
+        
+        return sortOrders.stream()
+            .map(order -> order.getSorted() + " " + 
+                 (order.getDirection() == SortDirection.ASCENDING ? "ASC" : "DESC"))
+            .collect(Collectors.joining(", "));
+    }
+    
+    /**
+     * Applies pagination and sorting to the base query.
+     */
+    private String applyPaginationAndSorting(String baseQuery, 
+                                             String orderByClause, 
+                                             int limit, 
+                                             int offset) {
+        StringBuilder queryBuilder = new StringBuilder(baseQuery);
+        
+        // Remove existing ORDER BY if present before adding new one
+        int orderByIndex = baseQuery.toLowerCase().lastIndexOf("order by");
+        if (orderByIndex != -1) {
+            queryBuilder = new StringBuilder(baseQuery.substring(0, orderByIndex));
+        }
+        
+        // Add new ORDER BY if provided
+        if (!orderByClause.isEmpty()) {
+            queryBuilder.append(" ORDER BY ").append(orderByClause);
+        }
+        
+        // Add LIMIT and OFFSET for pagination
+        queryBuilder.append(" LIMIT ").append(limit);
+        queryBuilder.append(" OFFSET ").append(offset);
+        
+        return queryBuilder.toString();
+    }
+    
+    /**
+     * Fetches data using the final query.
+     */
+    private List<Map<String, Object>> fetchData(String query, List<ColumnMetadata> columns) {
+        return jdbcTemplate.query(query, (rs, rowNum) -> {
+            Map<String, Object> row = new HashMap<>();
+            for (ColumnMetadata col : columns) {
+                // Use pattern matching for appropriate type conversion
+                Object value = getTypedValue(rs, col);
+                row.put(col.name(), value);
+            }
+            return row;
+        });
+    }
+    
+    /**
+     * Gets a properly typed value from the ResultSet based on column metadata.
+     * Uses pattern matching (JDK 21 feature).
+     */
+    private Object getTypedValue(ResultSet rs, ColumnMetadata col) throws SQLException {
+        // Handle different types with pattern matching
+        return switch (col.sqlType()) {
+            case Types.CHAR, Types.VARCHAR, Types.LONGVARCHAR, 
+                 Types.NCHAR, Types.NVARCHAR, Types.LONGNVARCHAR -> rs.getString(col.name());
+            case Types.NUMERIC, Types.DECIMAL -> rs.getBigDecimal(col.name());
+            case Types.BIT, Types.BOOLEAN -> rs.getBoolean(col.name());
+            case Types.TINYINT, Types.SMALLINT, Types.INTEGER -> rs.getInt(col.name());
+            case Types.BIGINT -> rs.getLong(col.name());
+            case Types.REAL, Types.FLOAT, Types.DOUBLE -> rs.getDouble(col.name());
+            case Types.DATE -> rs.getDate(col.name()) != null ? 
+                               rs.getDate(col.name()).toLocalDate() : null;
+            case Types.TIMESTAMP -> rs.getTimestamp(col.name()) != null ? 
+                                   rs.getTimestamp(col.name()).toLocalDateTime() : null;
+            default -> rs.getObject(col.name());
+        };
+    }
+    
+    /**
+     * Counts total results for pagination.
+     */
+    private int countTotalResults(String baseQuery) {
+        // Create a count query from the base query
+        String countQuery = buildCountQuery(baseQuery);
+        Integer count = jdbcTemplate.queryForObject(countQuery, Integer.class);
+        return count != null ? count : 0;
+    }
+    
+    /**
+     * Builds a count query from the base query.
+     */
+    private String buildCountQuery(String baseQuery) {
+        // Remove ORDER BY and LIMIT clauses if present
+        String cleanQuery = removeOrderByAndLimit(baseQuery);
+        return "SELECT COUNT(*) FROM (" + cleanQuery + ") AS count_query";
+    }
+    
+    /**
+     * Removes ORDER BY and LIMIT clauses from a query.
+     */
+    private String removeOrderByAndLimit(String query) {
+        String lowerQuery = query.toLowerCase();
+        int orderByIndex = lowerQuery.lastIndexOf("order by");
+        int limitIndex = lowerQuery.lastIndexOf("limit");
+        
+        if (limitIndex != -1) {
+            return query.substring(0, limitIndex);
+        } else if (orderByIndex != -1) {
+            return query.substring(0, orderByIndex);
+        }
+        
+        return query;
+    }
+}
