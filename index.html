@@ -1,0 +1,2011 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Schema Designer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+        
+        :root {
+            /* Light mode colors */
+            --primary: #4361ee;
+            --primary-light: #4895ef;
+            --primary-dark: #3f37c9;
+            --secondary: #f72585;
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+            --text-color: #212529;
+            --text-secondary: #6c757d;
+            --text-muted: #adb5bd;
+            --border-color: #dee2e6;
+            --header-bg: #ffffff;
+            --table-header-bg: #f0f0f0;
+            --table-border: #ddd;
+            --relationship-color: #3b82f6;
+            --grid-color: #e1e1e1;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+            --hover-bg: #e6efff;
+            --connection-label-bg: #ffffff;
+            --connection-label-color: #3b82f6;
+        }
+        
+        [data-theme="dark"] {
+            /* Dark mode colors */
+            --primary: #4361ee;
+            --primary-light: #4895ef;
+            --primary-dark: #3f37c9;
+            --secondary: #f72585;
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --text-color: #f8f9fa;
+            --text-secondary: #bbbbbb;
+            --text-muted: #777777;
+            --border-color: #333333;
+            --header-bg: #1e1e1e;
+            --table-header-bg: #2a2a2a;
+            --table-border: #333333;
+            --relationship-color: #5b92f7;
+            --grid-color: #282828;
+            --shadow-color: rgba(0, 0, 0, 0.3);
+            --hover-bg: #2d3748;
+            --connection-label-bg: #2a2a2a;
+            --connection-label-color: #5b92f7;
+        }
+        
+        body {
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s ease;
+        }
+        
+        header {
+            background-color: var(--header-bg);
+            color: var(--text-color);
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+            box-shadow: 0 2px 5px var(--shadow-color);
+            transition: all 0.3s ease;
+        }
+        
+        header h1 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin: 0;
+        }
+        
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            box-shadow: 0 2px 4px var(--shadow-color);
+        }
+        
+        button:hover {
+            background-color: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 3px 5px var(--shadow-color);
+        }
+        
+        button:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 2px var(--shadow-color);
+        }
+        
+        button.btn-secondary {
+            background-color: var(--card-bg);
+            color: var(--primary);
+            border: 1px solid var(--primary);
+        }
+        
+        button.btn-secondary:hover {
+            background-color: var(--hover-bg);
+        }
+        
+        button.btn-danger {
+            background-color: var(--secondary);
+        }
+        
+        button.btn-danger:hover {
+            background-color: #e01e79;
+        }
+        
+        .container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .sidebar {
+            width: 250px;
+            background: var(--card-bg);
+            border-right: 1px solid var(--border-color);
+            padding: 1.2rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 5;
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar h3 {
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+            color: var(--text-color);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .sidebar-section {
+            background-color: var(--bg-color);
+            border-radius: 8px;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .relation-types {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .relation-btn {
+            display: flex;
+            flex-direction: column;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .relation-btn:hover {
+            background-color: var(--hover-bg);
+            border-color: var(--primary-light);
+        }
+        
+        .relation-btn.active {
+            background-color: var(--hover-bg);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(67, 97, 238, 0.2);
+        }
+        
+        .relation-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-color);
+            margin-bottom: 4px;
+        }
+        
+        .relation-info {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .relation-label {
+            font-size: 0.9rem;
+            color: var(--primary);
+            font-weight: 600;
+            width: 30px;
+        }
+        
+        .relation-desc {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.3;
+        }
+        
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            background-image: 
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size: 20px 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .design-status {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: var(--card-bg);
+            border-radius: 6px;
+            padding: 8px 12px;
+            box-shadow: 0 2px 5px var(--shadow-color);
+            font-size: 0.9rem;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s;
+            color: var(--text-color);
+        }
+        
+        .design-status.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .design-status i {
+            color: var(--primary);
+        }
+        
+        #schema-canvas {
+            position: absolute;
+            transform-origin: 0 0;
+            width: 5000px;
+            height: 5000px;
+            transform: scale(1);
+            background-color: transparent;
+        }
+        
+        .table {
+            position: absolute;
+            background: var(--card-bg);
+            border-radius: 4px;
+            width: 220px;
+            box-shadow: 0 1px 3px var(--shadow-color);
+            cursor: move;
+            user-select: none;
+            z-index: 2;
+            overflow: hidden;
+            transition: box-shadow 0.2s, transform 0.2s, background-color 0.3s;
+            border: 1px solid var(--table-border);
+        }
+        
+        .table:hover {
+            box-shadow: 0 3px 8px var(--shadow-color);
+        }
+        
+        .table.dragging {
+            opacity: 0.8;
+            box-shadow: 0 8px 20px var(--shadow-color);
+            z-index: 100;
+        }
+        
+        .table-header {
+            background-color: var(--table-header-bg);
+            padding: 0.4rem 0.6rem;
+            border-bottom: 1px solid var(--table-border);
+            font-weight: 500;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.3s;
+        }
+        
+        .table-title {
+            margin: 0;
+            font-size: 0.9rem;
+            width: 100%;
+            border: none;
+            background: transparent;
+            outline: none;
+            font-weight: 600;
+            color: var(--text-color);
+            transition: color 0.3s;
+        }
+        
+        .table-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .btn-table-action {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, color 0.3s;
+            box-shadow: none;
+        }
+        
+        .btn-table-action:hover {
+            background: rgba(0, 0, 0, 0.05);
+            color: var(--text-color);
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .table-body {
+            padding: 0;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .column {
+            display: flex;
+            padding: 0.35rem 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+            position: relative;
+            align-items: center;
+            transition: background-color 0.3s;
+        }
+        
+        .column:hover {
+            background-color: var(--hover-bg);
+        }
+        
+        .column.linkable {
+            cursor: pointer;
+        }
+        
+        .column.linkable:hover {
+            background-color: var(--hover-bg);
+        }
+        
+        .column-icon {
+            width: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 4px;
+        }
+        
+        .column-name {
+            flex: 3;
+            font-size: 0.85rem;
+            color: var(--text-color);
+            transition: color 0.3s;
+        }
+        
+        .column-type {
+            flex: 2;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            text-align: right;
+            padding-right: 5px;
+            transition: color 0.3s;
+        }
+        
+        .column-actions {
+            width: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        
+        .btn-column-delete {
+            background: transparent;
+            border: none;
+            padding: 0;
+            width: 16px;
+            height: 16px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            opacity: 0.5;
+            transition: opacity 0.2s, color 0.3s;
+            box-shadow: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .btn-column-delete:hover {
+            opacity: 1;
+            color: var(--secondary);
+            background: transparent;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .add-column {
+            width: 100%;
+            padding: 0.5rem;
+            text-align: center;
+            background: var(--bg-color);
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: var(--primary);
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .add-column:hover {
+            background: var(--hover-bg);
+        }
+        
+        .connection-label {
+            padding: 3px 6px;
+            font-size: 0.7rem;
+            z-index: 10;
+            background: var(--connection-label-bg);
+            border-radius: 10px;
+            color: var(--connection-label-color);
+            box-shadow: 0 1px 2px var(--shadow-color);
+            cursor: pointer;
+            opacity: 0.9;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        
+        .connection-label:hover {
+            opacity: 1;
+            transform: scale(1.05);
+        }
+        
+        .linking-source {
+            background-color: rgba(67, 97, 238, 0.1) !important;
+            position: relative;
+        }
+        
+        .linking-source::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            box-shadow: 0 0 0 2px var(--relationship-color);
+            pointer-events: none;
+        }
+        
+        .floating-controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+        }
+        
+        .zoom-controls {
+            display: flex;
+            gap: 2px;
+            background: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 2px 10px var(--shadow-color);
+            padding: 3px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-zoom {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            color: var(--text-secondary);
+            box-shadow: none;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        
+        .btn-zoom:hover {
+            background-color: var(--hover-bg);
+            color: var(--primary);
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .modal {
+            background-color: var(--card-bg);
+            border-radius: 8px;
+            width: 500px;
+            max-width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 25px var(--shadow-color);
+            transform: translateY(20px);
+            transition: transform 0.3s, background-color 0.3s;
+        }
+        
+        .modal-overlay.active .modal {
+            transform: translateY(0);
+        }
+        
+        .modal-header {
+            padding: 1.2rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-color);
+            margin: 0;
+            transition: color 0.3s;
+        }
+        
+        .modal-close {
+            background: transparent;
+            border: none;
+            font-size: 1.5rem;
+            line-height: 1;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 0;
+            box-shadow: none;
+            transition: color 0.3s;
+        }
+        
+        .modal-close:hover {
+            color: var(--secondary);
+            background: transparent;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .modal-body {
+            padding: 1.5rem;
+        }
+        
+        .modal-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 1.2rem;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--text-color);
+            transition: color 0.3s;
+        }
+        
+        .form-control {
+            display: block;
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            font-size: 1rem;
+            line-height: 1.5;
+            color: var(--text-color);
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            transition: border-color 0.2s, box-shadow 0.2s, color 0.3s, background-color 0.3s;
+        }
+        
+        .form-control:focus {
+            border-color: var(--primary-light);
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.15);
+            outline: none;
+        }
+        
+        .form-text {
+            display: block;
+            margin-top: 0.25rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            transition: color 0.3s;
+        }
+        
+        .column-list {
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            margin-top: 0.5rem;
+            transition: border-color 0.3s;
+        }
+        
+        .column-item {
+            display: flex;
+            gap: 8px;
+            padding: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+            align-items: center;
+            transition: border-color 0.3s;
+        }
+        
+        .column-item:last-child {
+            border-bottom: none;
+        }
+        
+        .column-checkbox {
+            margin: 0;
+        }
+        
+        .column-add-form {
+            display: flex;
+            gap: 10px;
+            margin-top: 0.5rem;
+        }
+        
+        .btn-add-column-form {
+            padding: 0.5rem 0.75rem;
+            white-space: nowrap;
+        }
+        
+        /* Add Column modal */
+        .column-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        
+        .column-modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .column-modal-content {
+            background-color: var(--card-bg);
+            border-radius: 8px;
+            width: 300px;
+            padding: 20px;
+            box-shadow: 0 10px 25px var(--shadow-color);
+            transition: background-color 0.3s;
+        }
+        
+        .column-modal-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: var(--text-color);
+            transition: color 0.3s;
+        }
+        
+        .column-form-group {
+            margin-bottom: 15px;
+        }
+        
+        .column-modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        
+        /* Theme toggle switch */
+        .theme-switch-wrapper {
+            display: flex;
+            align-items: center;
+            margin-left: 15px;
+        }
+        
+        .theme-switch {
+            display: inline-block;
+            height: 24px;
+            position: relative;
+            width: 48px;
+        }
+        
+        .theme-switch input {
+            display: none;
+        }
+        
+        .slider {
+            background-color: #ccc;
+            bottom: 0;
+            cursor: pointer;
+            left: 0;
+            position: absolute;
+            right: 0;
+            top: 0;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        
+        .slider:before {
+            background-color: white;
+            content: "🌞";
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            bottom: 4px;
+            left: 4px;
+            height: 16px;
+            position: absolute;
+            transition: .4s;
+            width: 16px;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: var(--primary);
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(24px);
+            content: "🌜";
+        }
+        
+        /* Icon styles */
+        .icon-key {
+            color: #ffc107;
+            font-size: 12px;
+        }
+        
+        .icon-foreign-key {
+            color: #17a2b8;
+            font-size: 12px;
+        }
+        
+        /* Icon font */
+        .icon-key::before {
+            content: '🔑';
+            font-size: 12px;
+        }
+        
+        .icon-foreign-key::before {
+            content: '🔗';
+            font-size: 12px;
+        }
+        
+        .icon-trash::before {
+            content: '🗑️';
+            font-size: 12px;
+        }
+        
+        .icon-plus::before {
+            content: '+';
+        }
+        
+        .icon-link::before {
+            content: '🔗';
+            font-size: 14px;
+        }
+        
+        .icon-database::before {
+            content: '💾';
+            font-size: 14px;
+        }
+        
+        /* Endpoint Styles */
+        .endpoint {
+            z-index: 10;
+        }
+        
+        .jtk-endpoint {
+            z-index: 10;
+            transition: stroke 0.3s;
+        }
+        
+        .tableEndpoint {
+            cursor: pointer;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                max-height: 150px;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Database Schema Designer</h1>
+        <div class="toolbar">
+            <button id="btn-add-table"><span class="icon-plus"></span> Add Table</button>
+            <button id="btn-export"><span class="icon-database"></span> Export</button>
+            <button id="btn-clear" class="btn-danger"><span class="icon-trash"></span> Clear All</button>
+            <div class="theme-switch-wrapper">
+                <label class="theme-switch" for="theme-toggle">
+                    <input type="checkbox" id="theme-toggle" />
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div class="sidebar">
+            <h3><span class="icon-link"></span> Relationship Types</h3>
+            <div class="relation-types">
+                <div id="btn-relation-1to1" class="relation-btn">
+                    <div class="relation-title">One-to-One</div>
+                    <div class="relation-info">
+                        <div class="relation-label">1:1</div>
+                        <div class="relation-desc">Each record in Table A is linked to one record in Table B</div>
+                    </div>
+                </div>
+                <div id="btn-relation-1toN" class="relation-btn active">
+                    <div class="relation-title">One-to-Many</div>
+                    <div class="relation-info">
+                        <div class="relation-label">1:N</div>
+                        <div class="relation-desc">Each record in Table A is linked to multiple records in Table B</div>
+                    </div>
+                </div>
+                <div id="btn-relation-NtoM" class="relation-btn">
+                    <div class="relation-title">Many-to-Many</div>
+                    <div class="relation-info">
+                        <div class="relation-label">N:M</div>
+                        <div class="relation-desc">Multiple records in Table A are linked to multiple records in Table B</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="canvas-container">
+            <div class="design-status" id="design-status">
+                <span class="icon-link"></span> <span>Select a column to start linking</span>
+            </div>
+            <div id="schema-canvas"></div>
+        </div>
+    </div>
+    
+    <div class="floating-controls">
+        <div class="zoom-controls">
+            <button class="btn-zoom" id="btn-zoom-out">-</button>
+            <button class="btn-zoom" id="btn-zoom-reset">100%</button>
+            <button class="btn-zoom" id="btn-zoom-in">+</button>
+        </div>
+    </div>
+    
+    <!-- Add Table Modal -->
+    <div class="modal-overlay" id="add-table-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Add New Table</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="table-name">Table Name</label>
+                    <input type="text" class="form-control" id="table-name" placeholder="Enter table name">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Columns</label>
+                    <div class="column-list" id="new-table-columns">
+                        <div class="column-item">
+                            <input type="checkbox" class="column-checkbox" id="pk-checkbox" checked>
+                            <input type="text" class="form-control" value="id" placeholder="Column name">
+                            <input type="text" class="form-control" value="int(11)" placeholder="Data type">
+                            <button class="btn-column-delete" title="Delete column"><span class="icon-trash"></span></button>
+                        </div>
+                    </div>
+                    <div class="column-add-form">
+                        <input type="text" class="form-control" id="new-column-name" placeholder="Column name">
+                        <input type="text" class="form-control" id="new-column-type" placeholder="Data type">
+                        <button class="btn-add-column-form" id="add-column-to-form">Add</button>
+                    </div>
+                    <span class="form-text">First checkbox indicates primary key column</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary modal-close-btn">Cancel</button>
+                <button id="btn-create-table">Create Table</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Export Modal -->
+    <div class="modal-overlay" id="export-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Export Schema</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="export-format">Format</label>
+                    <select class="form-control" id="export-format">
+                        <option value="json">JSON</option>
+                        <option value="sql">SQL</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="export-output">Output</label>
+                    <textarea class="form-control" id="export-output" rows="15" readonly></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-copy-export">Copy to Clipboard</button>
+                <button class="modal-close-btn">Close</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add Column Modal -->
+    <div class="column-modal" id="add-column-modal">
+        <div class="column-modal-content">
+            <div class="column-modal-title">Add New Column</div>
+            <div class="column-form-group">
+                <label for="column-name-input">Column Name</label>
+                <input type="text" class="form-control" id="column-name-input" placeholder="Enter column name">
+            </div>
+            <div class="column-form-group">
+                <label for="column-type-input">Data Type</label>
+                <input type="text" class="form-control" id="column-type-input" placeholder="varchar(255)">
+            </div>
+            <div class="column-modal-actions">
+                <button class="btn-secondary" id="btn-cancel-column">Cancel</button>
+                <button id="btn-save-column">Add Column</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load jsPlumb library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsPlumb/2.15.6/js/jsplumb.min.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Theme toggle functionality
+            const themeToggle = document.getElementById('theme-toggle');
+            
+            // Check for saved theme preference or set a default
+            if (localStorage.getItem('theme') === 'dark') {
+                document.body.setAttribute('data-theme', 'dark');
+                themeToggle.checked = true;
+            }
+            
+            // Add event listener for theme toggle
+            themeToggle.addEventListener('change', function() {
+                if (this.checked) {
+                    document.body.setAttribute('data-theme', 'dark');
+                    localStorage.setItem('theme', 'dark');
+                } else {
+                    document.body.removeAttribute('data-theme');
+                    localStorage.setItem('theme', 'light');
+                }
+                
+                // Redraw jsPlumb connections after theme change
+                setTimeout(() => {
+                    jsPlumbInstance.repaintEverything();
+                }, 300);
+            });
+            
+            // Initialize jsPlumb with diagram-like connection styling
+            const jsPlumbInstance = jsPlumb.getInstance({
+                // Use Flowchart connectors for straighter lines with defined control points
+                Connector: ["Flowchart", { 
+                    cornerRadius: 5,
+                    midpoint: 0.5,
+                    gap: 10,
+                    stub: 15
+                }],
+                // Small transparent endpoints
+                Endpoint: ["Dot", { 
+                    radius: 3, 
+                    cssClass: "tableEndpoint" 
+                }],
+                EndpointStyle: { 
+                    fill: "transparent", 
+                    stroke: "#3b82f6",
+                    strokeWidth: 1
+                },
+                // Connection styling - blue line with consistent width
+                PaintStyle: { 
+                    stroke: "#3b82f6", 
+                    strokeWidth: 1.5
+                },
+                // Slightly thicker on hover
+                HoverPaintStyle: { 
+                    stroke: "#2563eb", 
+                    strokeWidth: 2
+                },
+                // Arrow overlay at the end
+                ConnectionOverlays: [
+                    ["Arrow", { 
+                        location: 1, 
+                        width: 8,
+                        length: 8,
+                        foldback: 0.8
+                    }]
+                ],
+                Container: "schema-canvas"
+            });
+            
+            // State management
+            const schemaState = {
+                tables: {},
+                relationships: {},
+                nextTableId: 1,
+                nextRelationshipId: 1,
+                selectedRelationshipType: '1:N',
+                connectionMode: false,
+                sourceColumn: null,
+                sourceTable: null,
+                currentTableForColumn: null,
+                foreignKeys: {} // Keep track of columns that are foreign keys
+            };
+            
+            // Canvas and zoom management
+            const canvas = document.getElementById('schema-canvas');
+            const canvasContainer = document.querySelector('.canvas-container');
+            const designStatus = document.getElementById('design-status');
+            let scale = 1;
+            let translateX = 0;
+            let translateY = 0;
+            let isPanning = false;
+            let startX = 0;
+            let startY = 0;
+            
+            // Update canvas transform
+            function updateCanvasTransform() {
+                canvas.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+                jsPlumbInstance.setZoom(scale);
+            }
+            
+            // Zoom functions
+            document.getElementById('btn-zoom-in').addEventListener('click', function() {
+                scale = Math.min(scale + 0.1, 2);
+                updateCanvasTransform();
+                document.getElementById('btn-zoom-reset').textContent = `${Math.round(scale * 100)}%`;
+            });
+            
+            document.getElementById('btn-zoom-out').addEventListener('click', function() {
+                scale = Math.max(scale - 0.1, 0.3);
+                updateCanvasTransform();
+                document.getElementById('btn-zoom-reset').textContent = `${Math.round(scale * 100)}%`;
+            });
+            
+            document.getElementById('btn-zoom-reset').addEventListener('click', function() {
+                scale = 1;
+                updateCanvasTransform();
+                document.getElementById('btn-zoom-reset').textContent = `100%`;
+            });
+            
+            // Canvas panning
+            canvasContainer.addEventListener('mousedown', function(e) {
+                if (e.target === canvas || e.target === canvasContainer) {
+                    isPanning = true;
+                    startX = e.clientX - translateX;
+                    startY = e.clientY - translateY;
+                    canvasContainer.style.cursor = 'grabbing';
+                    
+                    // Exit connection mode if active
+                    if (schemaState.connectionMode) {
+                        exitConnectionMode();
+                    }
+                }
+            });
+            
+            document.addEventListener('mousemove', function(e) {
+                if (isPanning) {
+                    translateX = e.clientX - startX;
+                    translateY = e.clientY - startY;
+                    updateCanvasTransform();
+                }
+            });
+            
+            document.addEventListener('mouseup', function() {
+                isPanning = false;
+                canvasContainer.style.cursor = 'default';
+            });
+            
+            // Table creation function
+            function createTable(id, name, columns, x, y) {
+                const tableId = id || `table-${schemaState.nextTableId++}`;
+                const tableName = name || `Table ${schemaState.nextTableId-1}`;
+                const tableX = x || 100 + (schemaState.nextTableId-1) * 30;
+                const tableY = y || 100 + (schemaState.nextTableId-1) * 30;
+                
+                // Create table element
+                const tableEl = document.createElement('div');
+                tableEl.className = 'table';
+                tableEl.id = tableId;
+                tableEl.style.left = `${tableX}px`;
+                tableEl.style.top = `${tableY}px`;
+                
+                // Create table header
+                const tableHeader = document.createElement('div');
+                tableHeader.className = 'table-header';
+                
+                const tableTitle = document.createElement('input');
+                tableTitle.type = 'text';
+                tableTitle.className = 'table-title';
+                tableTitle.value = tableName;
+                tableTitle.placeholder = "Table name";
+                tableTitle.addEventListener('change', function() {
+                    schemaState.tables[tableId].name = this.value;
+                });
+                
+                // Create table actions
+                const tableActions = document.createElement('div');
+                tableActions.className = 'table-actions';
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'btn-table-action';
+                deleteBtn.innerHTML = '<span class="icon-trash"></span>';
+                deleteBtn.title = 'Delete table';
+                deleteBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    deleteTable(tableId);
+                });
+                
+                tableActions.appendChild(deleteBtn);
+                tableHeader.appendChild(tableTitle);
+                tableHeader.appendChild(tableActions);
+                tableEl.appendChild(tableHeader);
+                
+                // Create table body
+                const tableBody = document.createElement('div');
+                tableBody.className = 'table-body';
+                
+                // Add columns
+                const tableColumns = [];
+                columns.forEach(column => {
+                    const columnEl = createColumnElement(column, tableId);
+                    tableBody.appendChild(columnEl);
+                    
+                    tableColumns.push({
+                        name: column.name,
+                        type: column.type,
+                        primaryKey: column.primaryKey || false,
+                        foreignKey: column.foreignKey || false
+                    });
+                });
+                
+                // Add "Add Column" button
+                const addColumnBtn = document.createElement('div');
+                addColumnBtn.className = 'add-column';
+                addColumnBtn.innerHTML = '<span class="icon-plus"></span> Add Column';
+                addColumnBtn.addEventListener('click', function() {
+                    // Open column modal
+                    openColumnModal(tableId);
+                });
+                
+                tableBody.appendChild(addColumnBtn);
+                tableEl.appendChild(tableBody);
+                
+                // Add to DOM
+                canvas.appendChild(tableEl);
+                
+                // Store table data in state
+                schemaState.tables[tableId] = {
+                    id: tableId,
+                    name: tableName,
+                    columns: tableColumns,
+                    position: { x: tableX, y: tableY }
+                };
+                
+                // Make table draggable
+                tableEl.addEventListener('mousedown', function(e) {
+                    if (e.target === tableHeader || e.target === tableTitle || e.target === tableHeader.parentNode) {
+                        const startX = e.clientX;
+                        const startY = e.clientY;
+                        const startLeft = parseInt(tableEl.style.left);
+                        const startTop = parseInt(tableEl.style.top);
+                        
+                        // Add dragging class
+                        tableEl.classList.add('dragging');
+                        
+                        function mouseMoveHandler(e) {
+                            const dx = e.clientX - startX;
+                            const dy = e.clientY - startY;
+                            
+                            const newLeft = startLeft + dx / scale;
+                            const newTop = startTop + dy / scale;
+                            
+                            tableEl.style.left = `${newLeft}px`;
+                            tableEl.style.top = `${newTop}px`;
+                            
+                            // Update jsPlumb connections
+                            jsPlumbInstance.revalidate(tableId);
+                        }
+                        
+                        function mouseUpHandler() {
+                            document.removeEventListener('mousemove', mouseMoveHandler);
+                            document.removeEventListener('mouseup', mouseUpHandler);
+                            
+                            // Remove dragging class
+                            tableEl.classList.remove('dragging');
+                            
+                            // Update position in state
+                            const position = {
+                                x: parseInt(tableEl.style.left),
+                                y: parseInt(tableEl.style.top)
+                            };
+                            schemaState.tables[tableId].position = position;
+                        }
+                        
+                        document.addEventListener('mousemove', mouseMoveHandler);
+                        document.addEventListener('mouseup', mouseUpHandler);
+                    }
+                });
+                
+                return tableId;
+            }
+            
+            // Add Column Modal
+            function openColumnModal(tableId) {
+                // Store the current table ID
+                schemaState.currentTableForColumn = tableId;
+                
+                // Reset form
+                document.getElementById('column-name-input').value = '';
+                document.getElementById('column-type-input').value = 'varchar(255)';
+                
+                // Show modal
+                document.getElementById('add-column-modal').classList.add('active');
+                
+                // Focus on name input
+                document.getElementById('column-name-input').focus();
+            }
+            
+            // Cancel adding a column
+            document.getElementById('btn-cancel-column').addEventListener('click', function() {
+                document.getElementById('add-column-modal').classList.remove('active');
+            });
+            
+            // Save new column
+            document.getElementById('btn-save-column').addEventListener('click', function() {
+                const tableId = schemaState.currentTableForColumn;
+                const columnName = document.getElementById('column-name-input').value.trim();
+                const columnType = document.getElementById('column-type-input').value.trim();
+                
+                if (!columnName) {
+                    alert('Column name is required');
+                    return;
+                }
+                
+                // Create the new column
+                const newColumn = { 
+                    name: columnName, 
+                    type: columnType || 'varchar(255)',
+                    primaryKey: false,
+                    foreignKey: false
+                };
+                
+                // Add column to the table state
+                schemaState.tables[tableId].columns.push(newColumn);
+                
+                // Add column element to the table
+                const tableEl = document.getElementById(tableId);
+                const columnEl = createColumnElement(newColumn, tableId);
+                const addBtn = tableEl.querySelector('.add-column');
+                tableEl.querySelector('.table-body').insertBefore(columnEl, addBtn);
+                
+                // Close modal
+                document.getElementById('add-column-modal').classList.remove('active');
+                
+                // Refresh jsPlumb
+                jsPlumbInstance.revalidate(tableId);
+            });
+            
+            // Create a column element with linking functionality
+            function createColumnElement(column, tableId) {
+                const columnEl = document.createElement('div');
+                columnEl.className = 'column linkable';
+                columnEl.dataset.columnName = column.name;
+                
+                // Column icon (for primary key or foreign key)
+                const columnIcon = document.createElement('div');
+                columnIcon.className = 'column-icon';
+                
+                if (column.primaryKey) {
+                    columnIcon.innerHTML = '<span class="icon-key"></span>';
+                } else if (column.foreignKey) {
+                    columnIcon.innerHTML = '<span class="icon-foreign-key"></span>';
+                }
+                
+                // Column name
+                const columnName = document.createElement('div');
+                columnName.className = 'column-name';
+                columnName.textContent = column.name;
+                
+                // Column type
+                const columnType = document.createElement('div');
+                columnType.className = 'column-type';
+                columnType.textContent = column.type;
+                
+                // Column actions
+                const columnActions = document.createElement('div');
+                columnActions.className = 'column-actions';
+                
+                // Delete button (if not primary key)
+                if (!column.primaryKey) {
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'btn-column-delete';
+                    deleteBtn.innerHTML = '<span class="icon-trash"></span>';
+                    deleteBtn.title = 'Delete column';
+                    deleteBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        
+                        // Remove column from state
+                        const tableData = schemaState.tables[tableId];
+                        const columnIndex = tableData.columns.findIndex(c => c.name === column.name);
+                        if (columnIndex !== -1) {
+                            tableData.columns.splice(columnIndex, 1);
+                        }
+                        
+                        // Remove column element
+                        columnEl.remove();
+                        
+                        // Refresh jsPlumb connections
+                        jsPlumbInstance.revalidate(tableId);
+                    });
+                    columnActions.appendChild(deleteBtn);
+                }
+                
+                columnEl.appendChild(columnIcon);
+                columnEl.appendChild(columnName);
+                columnEl.appendChild(columnType);
+                columnEl.appendChild(columnActions);
+                
+                // Add click handler for establishing connections
+                columnEl.addEventListener('click', function() {
+                    if (schemaState.connectionMode) {
+                        // If we're already in connection mode and click another column
+                        // in the same table, switch to that column as source
+                        if (columnEl.closest('.table').id === schemaState.sourceTable) {
+                            // Clear old source
+                            if (schemaState.sourceColumn) {
+                                schemaState.sourceColumn.classList.remove('linking-source');
+                            }
+                            
+                            // Set new source
+                            schemaState.sourceColumn = columnEl;
+                            columnEl.classList.add('linking-source');
+                            
+                            // Update status
+                            updateDesignStatus("Now select a column to link to");
+                            
+                            return;
+                        }
+                        
+                        // If we click on a column in a different table, create the relationship
+                        const targetTable = columnEl.closest('.table').id;
+                        createRelationship(
+                            schemaState.sourceTable,
+                            targetTable,
+                            schemaState.sourceColumn.dataset.columnName,
+                            column.name
+                        );
+                        
+                        // Exit connection mode
+                        exitConnectionMode();
+                    } else {
+                        // Enter connection mode
+                        enterConnectionMode(columnEl);
+                    }
+                });
+                
+                // Add hover effect to highlight potential connections
+                columnEl.addEventListener('mouseenter', function() {
+                    if (schemaState.connectionMode && columnEl !== schemaState.sourceColumn) {
+                        columnEl.style.backgroundColor = 'var(--hover-bg)';
+                    }
+                });
+                
+                columnEl.addEventListener('mouseleave', function() {
+                    if (schemaState.connectionMode && columnEl !== schemaState.sourceColumn) {
+                        columnEl.style.backgroundColor = '';
+                    }
+                });
+                
+                return columnEl;
+            }
+            
+            // Enter connection mode
+            function enterConnectionMode(sourceColumnEl) {
+                schemaState.connectionMode = true;
+                schemaState.sourceColumn = sourceColumnEl;
+                schemaState.sourceTable = sourceColumnEl.closest('.table').id;
+                
+                // Add visual indication
+                sourceColumnEl.classList.add('linking-source');
+                
+                // Update design status
+                updateDesignStatus("Now select a column to link to");
+                
+                // Add visual markers to all linkable columns
+                document.querySelectorAll('.column.linkable').forEach(col => {
+                    if (col.closest('.table').id !== schemaState.sourceTable) {
+                        col.classList.add('potential-target');
+                    }
+                });
+            }
+            
+            // Exit connection mode
+            function exitConnectionMode() {
+                if (schemaState.sourceColumn) {
+                    schemaState.sourceColumn.classList.remove('linking-source');
+                }
+                
+                // Remove visual markers
+                document.querySelectorAll('.potential-target').forEach(col => {
+                    col.classList.remove('potential-target');
+                });
+                
+                // Reset state
+                schemaState.connectionMode = false;
+                schemaState.sourceColumn = null;
+                schemaState.sourceTable = null;
+                
+                // Update design status
+                hideDesignStatus();
+            }
+            
+            // Update design status message
+            function updateDesignStatus(message) {
+                designStatus.querySelector('span:last-child').textContent = message;
+                designStatus.classList.add('active');
+            }
+            
+            // Hide design status
+            function hideDesignStatus() {
+                designStatus.classList.remove('active');
+            }
+            
+            // Create relationship between tables
+            function createRelationship(sourceTableId, targetTableId, sourceColumn, targetColumn) {
+                const relationshipId = `relationship-${schemaState.nextRelationshipId++}`;
+                
+                // Store relationship data
+                schemaState.relationships[relationshipId] = {
+                    id: relationshipId,
+                    sourceTable: sourceTableId,
+                    targetTable: targetTableId,
+                    sourceColumn: sourceColumn,
+                    targetColumn: targetColumn,
+                    type: schemaState.selectedRelationshipType
+                };
+                
+                // Create the visual connection with jsPlumb
+                const connection = jsPlumbInstance.connect({
+                    source: document.querySelector(`#${sourceTableId} .column[data-column-name="${sourceColumn}"]`),
+                    target: document.querySelector(`#${targetTableId} .column[data-column-name="${targetColumn}"]`),
+                    anchors: [
+                        ["Right", "Left", "Right", "Right"],
+                        ["Left", "Right", "Left", "Left"]
+                    ],
+                    detachable: false,
+                    overlays: [
+                        ["Label", { 
+                            label: schemaState.selectedRelationshipType,
+                            location: 0.5,
+                            cssClass: "connection-label"
+                        }]
+                    ]
+                });
+                
+                // Set connection ID
+                if (connection) {
+                    connection.id = relationshipId;
+                    
+                    // Add delete functionality on label click
+                    connection.bind("click", function() {
+                        if (confirm('Delete this relationship?')) {
+                            // Remove foreign key indicators
+                            removeForeignKeyIndicator(sourceTableId, targetTableId, targetColumn);
+                            
+                            jsPlumbInstance.deleteConnection(connection);
+                            delete schemaState.relationships[relationshipId];
+                        }
+                    });
+                    
+                    // Add foreign key indicator to the target column
+                    addForeignKeyIndicator(targetTableId, targetColumn);
+                }
+                
+                return connection;
+            }
+            
+            // Add foreign key indicator to a column
+            function addForeignKeyIndicator(tableId, columnName) {
+                // Update the state
+                const tableData = schemaState.tables[tableId];
+                const columnIndex = tableData.columns.findIndex(c => c.name === columnName);
+                
+                if (columnIndex !== -1 && !tableData.columns[columnIndex].primaryKey) {
+                    tableData.columns[columnIndex].foreignKey = true;
+                    
+                    // Track this column as a foreign key
+                    if (!schemaState.foreignKeys[tableId]) {
+                        schemaState.foreignKeys[tableId] = {};
+                    }
+                    schemaState.foreignKeys[tableId][columnName] = true;
+                    
+                    // Update the visual indicator
+                    const columnElement = document.querySelector(`#${tableId} .column[data-column-name="${columnName}"]`);
+                    const iconElement = columnElement.querySelector('.column-icon');
+                    
+                    // Only update if not already a primary key
+                    if (!iconElement.querySelector('.icon-key')) {
+                        iconElement.innerHTML = '<span class="icon-foreign-key"></span>';
+                    }
+                }
+            }
+            
+            // Remove foreign key indicator
+            function removeForeignKeyIndicator(sourceTableId, targetTableId, columnName) {
+                // Update the state
+                const tableData = schemaState.tables[targetTableId];
+                const columnIndex = tableData.columns.findIndex(c => c.name === columnName);
+                
+                if (columnIndex !== -1) {
+                    tableData.columns[columnIndex].foreignKey = false;
+                    
+                    // Remove from tracking
+                    if (schemaState.foreignKeys[targetTableId]) {
+                        delete schemaState.foreignKeys[targetTableId][columnName];
+                    }
+                    
+                    // Update the visual indicator
+                    const columnElement = document.querySelector(`#${targetTableId} .column[data-column-name="${columnName}"]`);
+                    const iconElement = columnElement.querySelector('.column-icon');
+                    
+                    // Only remove if it's a foreign key icon
+                    if (iconElement.querySelector('.icon-foreign-key')) {
+                        iconElement.innerHTML = '';
+                    }
+                }
+            }
+            
+            // Delete a table and its connections
+            function deleteTable(tableId) {
+                if (!confirm('Delete this table and all its relationships?')) {
+                    return;
+                }
+                
+                // Remove all connections
+                const connections = jsPlumbInstance.getConnections();
+                for (let i = 0; i < connections.length; i++) {
+                    const connection = connections[i];
+                    const sourceEl = connection.source;
+                    const targetEl = connection.target;
+                    
+                    if (sourceEl.closest('.table').id === tableId || targetEl.closest('.table').id === tableId) {
+                        // Get relationship info before deleting
+                        const relationshipId = connection.id;
+                        const relationship = schemaState.relationships[relationshipId];
+                        
+                        if (relationship) {
+                            // Remove foreign key indicator if this table was the source
+                            if (relationship.sourceTable === tableId) {
+                                removeForeignKeyIndicator(
+                                    relationship.sourceTable, 
+                                    relationship.targetTable, 
+                                    relationship.targetColumn
+                                );
+                            }
+                        }
+                        
+                        jsPlumbInstance.deleteConnection(connection);
+                        delete schemaState.relationships[connection.id];
+                    }
+                }
+                
+                // Remove the table element
+                const tableEl = document.getElementById(tableId);
+                if (tableEl) {
+                    tableEl.remove();
+                }
+                
+                // Remove from state
+                delete schemaState.tables[tableId];
+                delete schemaState.foreignKeys[tableId];
+            }
+            
+            // Set relationship type buttons
+            document.getElementById('btn-relation-1to1').addEventListener('click', function() {
+                schemaState.selectedRelationshipType = '1:1';
+                document.querySelectorAll('.relation-btn').forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+            });
+            
+            document.getElementById('btn-relation-1toN').addEventListener('click', function() {
+                schemaState.selectedRelationshipType = '1:N';
+                document.querySelectorAll('.relation-btn').forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+            });
+            
+            document.getElementById('btn-relation-NtoM').addEventListener('click', function() {
+                schemaState.selectedRelationshipType = 'N:M';
+                document.querySelectorAll('.relation-btn').forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+            });
+            
+            // Add Table button
+            document.getElementById('btn-add-table').addEventListener('click', function() {
+                // Reset the modal form
+                document.getElementById('table-name').value = `Table ${schemaState.nextTableId}`;
+                
+                // Clear previous column entries
+                const columnList = document.getElementById('new-table-columns');
+                columnList.innerHTML = `
+                    <div class="column-item">
+                        <input type="checkbox" class="column-checkbox" id="pk-checkbox" checked>
+                        <input type="text" class="form-control" value="id" placeholder="Column name">
+                        <input type="text" class="form-control" value="int(11)" placeholder="Data type">
+                        <button class="btn-column-delete" title="Delete column"><span class="icon-trash"></span></button>
+                    </div>
+                `;
+                
+                // Add delete column functionality
+                document.querySelectorAll('#new-table-columns .btn-column-delete').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const columnItem = this.closest('.column-item');
+                        const checkbox = columnItem.querySelector('.column-checkbox');
+                        
+                        // Don't delete if it's a primary key
+                        if (checkbox.checked) {
+                            alert("Cannot delete primary key column");
+                            return;
+                        }
+                        
+                        columnItem.remove();
+                    });
+                });
+                
+                // Show the modal
+                openModal('add-table-modal');
+            });
+            
+            // Add Column to form
+            document.getElementById('add-column-to-form').addEventListener('click', function() {
+                const nameInput = document.getElementById('new-column-name');
+                const typeInput = document.getElementById('new-column-type');
+                
+                const name = nameInput.value.trim();
+                const type = typeInput.value.trim();
+                
+                if (name === '') {
+                    alert('Column name cannot be empty');
+                    return;
+                }
+                
+                // Create new column element
+                const columnItem = document.createElement('div');
+                columnItem.className = 'column-item';
+                columnItem.innerHTML = `
+                    <input type="checkbox" class="column-checkbox" disabled>
+                    <input type="text" class="form-control" value="${name}" placeholder="Column name">
+                    <input type="text" class="form-control" value="${type || 'varchar(255)'}" placeholder="Data type">
+                    <button class="btn-column-delete" title="Delete column"><span class="icon-trash"></span></button>
+                `;
+                
+                // Add delete functionality
+                const deleteBtn = columnItem.querySelector('.btn-column-delete');
+                deleteBtn.addEventListener('click', function() {
+                    columnItem.remove();
+                });
+                
+                // Add to the list
+                document.getElementById('new-table-columns').appendChild(columnItem);
+                
+                // Clear inputs
+                nameInput.value = '';
+                typeInput.value = '';
+                nameInput.focus();
+            });
+            
+            // Create Table from form
+            document.getElementById('btn-create-table').addEventListener('click', function() {
+                const tableName = document.getElementById('table-name').value.trim();
+                
+                if (tableName === '') {
+                    alert('Table name cannot be empty');
+                    return;
+                }
+                
+                // Collect columns
+                const columns = [];
+                document.querySelectorAll('#new-table-columns .column-item').forEach(item => {
+                    const isPrimaryKey = item.querySelector('.column-checkbox').checked;
+                    const nameInput = item.querySelectorAll('.form-control')[0];
+                    const typeInput = item.querySelectorAll('.form-control')[1];
+                    
+                    columns.push({
+                        name: nameInput.value.trim(),
+                        type: typeInput.value.trim(),
+                        primaryKey: isPrimaryKey,
+                        foreignKey: false
+                    });
+                });
+                
+                // Generate position within view
+                const containerRect = canvasContainer.getBoundingClientRect();
+                const x = Math.max(50, Math.random() * (containerRect.width - 300) / scale - translateX);
+                const y = Math.max(50, Math.random() * (containerRect.height - 300) / scale - translateY);
+                
+                // Create the table
+                createTable(null, tableName, columns, x, y);
+                
+                // Close the modal
+                closeModal('add-table-modal');
+            });
+            
+            // Export button
+            document.getElementById('btn-export').addEventListener('click', function() {
+                const format = document.getElementById('export-format').value;
+                const output = generateExport(format);
+                document.getElementById('export-output').value = output;
+                openModal('export-modal');
+            });
+            
+            // Clear all button
+            document.getElementById('btn-clear').addEventListener('click', function() {
+                if (confirm('Are you sure you want to clear the entire schema?')) {
+                    clearSchema();
+                }
+            });
+            
+            // Clear the entire schema
+            function clearSchema() {
+                // Remove all tables
+                Object.keys(schemaState.tables).forEach(tableId => {
+                    const tableEl = document.getElementById(tableId);
+                    if (tableEl) {
+                        tableEl.remove();
+                    }
+                });
+                
+                // Reset state
+                schemaState.tables = {};
+                schemaState.relationships = {};
+                schemaState.foreignKeys = {};
+                schemaState.nextTableId = 1;
+                schemaState.nextRelationshipId = 1;
+                
+                // Reset jsPlumb
+                jsPlumbInstance.deleteEveryEndpoint();
+                jsPlumbInstance.deleteEveryConnection();
+            }
+            
+            // Modal functions
+            function openModal(modalId) {
+                document.getElementById(modalId).classList.add('active');
+            }
+            
+            function closeModal(modalId) {
+                document.getElementById(modalId).classList.remove('active');
+            }
+            
+            // Close modals when clicking close button
+            document.querySelectorAll('.modal-close, .modal-close-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const modal = this.closest('.modal-overlay');
+                    modal.classList.remove('active');
+                });
+            });
+            
+            // Generate export data
+            function generateExport(format) {
+                if (format === 'json') {
+                    return JSON.stringify({
+                        tables: schemaState.tables,
+                        relationships: schemaState.relationships
+                    }, null, 2);
+                } else if (format === 'sql') {
+                    return generateSqlScript();
+                }
+                return '';
+            }
+            
+            // Generate SQL script
+            function generateSqlScript() {
+                let sql = '-- SQL Schema Generated by Database Schema Designer\n\n';
+                
+                // Create tables
+                Object.values(schemaState.tables).forEach(table => {
+                    sql += `CREATE TABLE ${table.name} (\n`;
+                    
+                    const columnDefs = table.columns.map(column => {
+                        let def = `  ${column.name} ${column.type}`;
+                        if (column.primaryKey) {
+                            def += ' PRIMARY KEY';
+                        }
+                        return def;
+                    });
+                    
+                    sql += columnDefs.join(',\n');
+                    sql += '\n);\n\n';
+                });
+                
+                // Create foreign keys for relationships
+                Object.values(schemaState.relationships).forEach(rel => {
+                    const sourceTable = schemaState.tables[rel.sourceTable];
+                    const targetTable = schemaState.tables[rel.targetTable];
+                    
+                    if (rel.type === '1:N') {
+                        sql += `ALTER TABLE ${targetTable.name}\n`;
+                        sql += `  ADD CONSTRAINT fk_${targetTable.name}_${sourceTable.name}\n`;
+                        sql += `  FOREIGN KEY (${rel.targetColumn})\n`;
+                        sql += `  REFERENCES ${sourceTable.name} (${rel.sourceColumn});\n\n`;
+                    } else if (rel.type === '1:1') {
+                        sql += `ALTER TABLE ${targetTable.name}\n`;
+                        sql += `  ADD CONSTRAINT fk_${targetTable.name}_${sourceTable.name}\n`;
+                        sql += `  FOREIGN KEY (${rel.targetColumn})\n`;
+                        sql += `  REFERENCES ${sourceTable.name} (${rel.sourceColumn});\n\n`;
+                        
+                        sql += `-- Add unique constraint for one-to-one relationship\n`;
+                        sql += `ALTER TABLE ${targetTable.name}\n`;
+                        sql += `  ADD CONSTRAINT uk_${targetTable.name}_${rel.targetColumn}\n`;
+                        sql += `  UNIQUE (${rel.targetColumn});\n\n`;
+                    } else if (rel.type === 'N:M') {
+                        // Create junction table for many-to-many
+                        const junctionTable = `${sourceTable.name}_${targetTable.name}`;
+                        
+                        sql += `-- Junction table for many-to-many relationship\n`;
+                        sql += `CREATE TABLE ${junctionTable} (\n`;
+                        sql += `  ${sourceTable.name.toLowerCase()}_${rel.sourceColumn} ${sourceTable.columns.find(c => c.name === rel.sourceColumn)?.type || 'int(11)'},\n`;
+                        sql += `  ${targetTable.name.toLowerCase()}_${rel.targetColumn} ${targetTable.columns.find(c => c.name === rel.targetColumn)?.type || 'int(11)'},\n`;
+                        sql += `  PRIMARY KEY (${sourceTable.name.toLowerCase()}_${rel.sourceColumn}, ${targetTable.name.toLowerCase()}_${rel.targetColumn}),\n`;
+                        sql += `  FOREIGN KEY (${sourceTable.name.toLowerCase()}_${rel.sourceColumn}) REFERENCES ${sourceTable.name} (${rel.sourceColumn}),\n`;
+                        sql += `  FOREIGN KEY (${targetTable.name.toLowerCase()}_${rel.targetColumn}) REFERENCES ${targetTable.name} (${rel.targetColumn})\n`;
+                        sql += `);\n\n`;
+                    }
+                });
+                
+                return sql;
+            }
+            
+            // Copy export to clipboard
+            document.getElementById('btn-copy-export').addEventListener('click', function() {
+                const outputText = document.getElementById('export-output');
+                outputText.select();
+                document.execCommand('copy');
+                alert('Copied to clipboard');
+            });
+            
+            // Create sample schema with three tables demonstrating all relationship types
+            function createSampleSchema() {
+                // Clear any existing tables
+                clearSchema();
+                
+                // 1. Users table
+                const usersTable = createTable('users', 'users', [
+                    { name: 'id', type: 'int(11)', primaryKey: true },
+                    { name: 'username', type: 'varchar(50)' },
+                    { name: 'email', type: 'varchar(100)' },
+                    { name: 'created_at', type: 'timestamp' }
+                ], 100, 100);
+                
+                // 2. User_profile table (one-to-one with User)
+                const profileTable = createTable('profiles', 'profiles', [
+                    { name: 'id', type: 'int(11)', primaryKey: true },
+                    { name: 'user_id', type: 'int(11)' },
+                    { name: 'full_name', type: 'varchar(100)' },
+                    { name: 'bio', type: 'text' },
+                    { name: 'avatar', type: 'varchar(255)' }
+                ], 450, 100);
+                
+                // 3. Posts table (one-to-many with User)
+                const postsTable = createTable('posts', 'posts', [
+                    { name: 'id', type: 'int(11)', primaryKey: true },
+                    { name: 'user_id', type: 'int(11)' },
+                    { name: 'title', type: 'varchar(200)' },
+                    { name: 'content', type: 'text' },
+                    { name: 'published_at', type: 'timestamp' }
+                ], 100, 350);
+                
+                // 4. Tags table (many-to-many with Posts)
+                const tagsTable = createTable('tags', 'tags', [
+                    { name: 'id', type: 'int(11)', primaryKey: true },
+                    { name: 'name', type: 'varchar(50)' },
+                    { name: 'slug', type: 'varchar(50)' }
+                ], 450, 350);
+                
+                // Wait for tables to be fully rendered
+                setTimeout(() => {
+                    // Create One-to-One relationship (User to Profile)
+                    schemaState.selectedRelationshipType = '1:1';
+                    document.querySelectorAll('.relation-btn').forEach(btn => btn.classList.remove('active'));
+                    document.getElementById('btn-relation-1to1').classList.add('active');
+                    
+                    createRelationship(
+                        'users',
+                        'profiles',
+                        'id',
+                        'user_id'
+                    );
+                    
+                    // Create One-to-Many relationship (User to Posts)
+                    schemaState.selectedRelationshipType = '1:N';
+                    document.querySelectorAll('.relation-btn').forEach(btn => btn.classList.remove('active'));
+                    document.getElementById('btn-relation-1toN').classList.add('active');
+                    
+                    createRelationship(
+                        'users',
+                        'posts',
+                        'id',
+                        'user_id'
+                    );
+                    
+                    // Create Many-to-Many relationship (Posts to Tags)
+                    schemaState.selectedRelationshipType = 'N:M';
+                    document.querySelectorAll('.relation-btn').forEach(btn => btn.classList.remove('active'));
+                    document.getElementById('btn-relation-NtoM').classList.add('active');
+                    
+                    createRelationship(
+                        'posts',
+                        'tags',
+                        'id',
+                        'id'
+                    );
+                    
+                    // Reset to default relationship type
+                    schemaState.selectedRelationshipType = '1:N';
+                    document.querySelectorAll('.relation-btn').forEach(btn => btn.classList.remove('active'));
+                    document.getElementById('btn-relation-1toN').classList.add('active');
+                }, 200);
+            }
+            
+            // Load sample schema on page load
+            window.addEventListener('load', createSampleSchema);
+        });
+    </script>
+</body>
+</html>
