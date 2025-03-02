@@ -315,25 +315,183 @@ public class DynamicQueryGridService {
     }
     
     /**
-     * Fetches data using the final query.
-     */
-    private List<Map<String, Object>> fetchData(String query, List<ColumnMetadata> columns) {
-        return jdbcTemplate.query(query, (rs, rowNum) -> {
-            Map<String, Object> row = new HashMap<>();
-            for (ColumnMetadata col : columns) {
-                try {
-                    // Use pattern matching for appropriate type conversion
-                    Object value = getTypedValue(rs, col);
-                    row.put(col.name(), value);
-                } catch (SQLException e) {
-                    // Log the error and set null for problematic columns
-                    System.err.println("Error fetching column " + col.name() + ": " + e.getMessage());
+ * Fetches data using the final query with enhanced debugging for type mismatches.
+ */
+private List<Map<String, Object>> fetchData(String query, List<ColumnMetadata> columns) {
+    System.out.println("Executing query: " + query);
+    
+    // Print expected column types from metadata for reference
+    System.out.println("Expected column types from metadata:");
+    for (ColumnMetadata col : columns) {
+        System.out.println("  Column: " + col.name() + 
+                           ", SQL Type: " + getSqlTypeName(col.sqlType()) + 
+                           ", Java Type: " + col.javaType().getSimpleName());
+    }
+    
+    return jdbcTemplate.query(query, (rs, rowNum) -> {
+        // Only print detailed row info for the first row to avoid flooding logs
+        boolean isFirstRow = (rowNum == 0);
+        Map<String, Object> row = new HashMap<>();
+        
+        if (isFirstRow) {
+            System.out.println("\nProcessing first row (#" + rowNum + "):");
+        }
+        
+        // Get actual metadata from ResultSet for first row
+        if (isFirstRow) {
+            try {
+                ResultSetMetaData rsMetaData = rs.getMetaData();
+                System.out.println("Actual ResultSet metadata for first row:");
+                for (int i = 1; i <= rsMetaData.getColumnCount(); i++) {
+                    System.out.println("  Column: " + rsMetaData.getColumnName(i) + 
+                                       ", SQL Type: " + getSqlTypeName(rsMetaData.getColumnType(i)) + 
+                                       ", Type Name: " + rsMetaData.getColumnTypeName(i));
+                }
+            } catch (SQLException e) {
+                System.err.println("Error fetching ResultSet metadata: " + e.getMessage());
+            }
+        }
+        
+        // Process each column
+        for (ColumnMetadata col : columns) {
+            try {
+                if (isFirstRow) {
+                    System.out.println("\nFetching column: " + col.name());
+                    System.out.println("  Expected type: " + getSqlTypeName(col.sqlType()) + 
+                                       " (" + col.javaType().getSimpleName() + ")");
+                    
+                    try {
+                        // Try to identify actual type from the ResultSet
+                        Object rawValue = rs.getObject(col.name());
+                        if (rawValue != null) {
+                            System.out.println("  Actual value class: " + rawValue.getClass().getName());
+                        } else {
+                            System.out.println("  Actual value is NULL");
+                        }
+                    } catch (SQLException e) {
+                        System.out.println("  Could not get raw object: " + e.getMessage());
+                    }
+                }
+                
+                // Try to get typed value
+                Object value = getTypedValue(rs, col);
+                
+                if (isFirstRow && value != null) {
+                    System.out.println("  Converted value class: " + value.getClass().getName());
+                    System.out.println("  Converted value: " + formatValueForLogging(value));
+                }
+                
+                row.put(col.name(), value);
+                
+            } catch (SQLException e) {
+                String message = "Error fetching column " + col.name() + ": " + e.getMessage();
+                System.err.println(message);
+                
+                // Add more detailed error analysis
+                if (e.getMessage().contains("inconsistent datatypes") || 
+                    e.getMessage().contains("ORA-00932")) {
+                    System.err.println("  Type mismatch detected! Oracle expected a different type than provided.");
+                    System.err.println("  Try examining the actual database schema vs. the detected type.");
+                    
+                    // Try with getString as fallback with more diagnostics
+                    try {
+                        System.err.println("  Attempting fallback to getString...");
+                        String strValue = rs.getString(col.name());
+                        System.err.println("  getString succeeded: " + (strValue != null ? "value=" + strValue : "NULL"));
+                        row.put(col.name(), strValue);
+                    } catch (SQLException innerEx) {
+                        System.err.println("  getString fallback also failed: " + innerEx.getMessage());
+                        
+                        // Last resort: try to identify the actual column type
+                        try {
+                            ResultSetMetaData rsmd = rs.getMetaData();
+                            for (int i = 1; i <= rsmd.getColumnCount(); i++) {
+                                if (col.name().equalsIgnoreCase(rsmd.getColumnName(i))) {
+                                    System.err.println("  Actual column type from ResultSet metadata: " + 
+                                                      rsmd.getColumnTypeName(i) + 
+                                                      " (SQL Type ID: " + rsmd.getColumnType(i) + ")");
+                                    break;
+                                }
+                            }
+                        } catch (SQLException metaEx) {
+                            System.err.println("  Could not retrieve column metadata: " + metaEx.getMessage());
+                        }
+                        
+                        row.put(col.name(), null);
+                    }
+                } else {
+                    // For other errors, just set to null
                     row.put(col.name(), null);
                 }
             }
-            return row;
-        });
+        }
+        
+        if (isFirstRow) {
+            System.out.println("\nFinished processing first row");
+        }
+        
+        return row;
+    });
+}
+
+/**
+ * Gets SQL type name from java.sql.Types constant
+ */
+private String getSqlTypeName(int sqlType) {
+    return switch (sqlType) {
+        case Types.CHAR -> "CHAR";
+        case Types.VARCHAR -> "VARCHAR";
+        case Types.LONGVARCHAR -> "LONGVARCHAR";
+        case Types.NCHAR -> "NCHAR";
+        case Types.NVARCHAR -> "NVARCHAR";
+        case Types.LONGNVARCHAR -> "LONGNVARCHAR";
+        case Types.NUMERIC -> "NUMERIC";
+        case Types.DECIMAL -> "DECIMAL";
+        case Types.BIT -> "BIT";
+        case Types.BOOLEAN -> "BOOLEAN";
+        case Types.TINYINT -> "TINYINT";
+        case Types.SMALLINT -> "SMALLINT";
+        case Types.INTEGER -> "INTEGER";
+        case Types.BIGINT -> "BIGINT";
+        case Types.REAL -> "REAL";
+        case Types.FLOAT -> "FLOAT";
+        case Types.DOUBLE -> "DOUBLE";
+        case Types.BINARY -> "BINARY";
+        case Types.VARBINARY -> "VARBINARY";
+        case Types.LONGVARBINARY -> "LONGVARBINARY";
+        case Types.DATE -> "DATE";
+        case Types.TIME -> "TIME";
+        case Types.TIMESTAMP -> "TIMESTAMP";
+        case Types.CLOB -> "CLOB";
+        case Types.BLOB -> "BLOB";
+        case Types.ARRAY -> "ARRAY";
+        case Types.STRUCT -> "STRUCT";
+        case Types.REF -> "REF";
+        case Types.DATALINK -> "DATALINK";
+        case Types.ROWID -> "ROWID";
+        case Types.NCLOB -> "NCLOB";
+        case Types.SQLXML -> "SQLXML";
+        case Types.REF_CURSOR -> "REF_CURSOR";
+        case Types.TIME_WITH_TIMEZONE -> "TIME_WITH_TIMEZONE";
+        case Types.TIMESTAMP_WITH_TIMEZONE -> "TIMESTAMP_WITH_TIMEZONE";
+        default -> "UNKNOWN(" + sqlType + ")";
+    };
+}
+
+/**
+ * Formats a value for logging, handling special cases like byte arrays.
+ */
+private String formatValueForLogging(Object value) {
+    if (value == null) {
+        return "null";
+    } else if (value instanceof byte[] bytes) {
+        return "[Binary data, length: " + bytes.length + " bytes]";
+    } else if (value.toString().length() > 100) {
+        return value.toString().substring(0, 97) + "...";
+    } else {
+        return value.toString();
     }
+}
     
     /**
      * Gets a properly typed value from the ResultSet based on column metadata.
