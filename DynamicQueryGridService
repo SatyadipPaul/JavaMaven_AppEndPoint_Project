@@ -11,6 +11,7 @@ import com.vaadin.flow.data.renderer.LocalDateTimeRenderer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
 import java.sql.ResultSet;
@@ -26,6 +27,7 @@ import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class DynamicQueryGridService {
 
     @Autowired
@@ -70,10 +72,12 @@ public class DynamicQueryGridService {
 
         // For Oracle, use ROWNUM <= 0 to get metadata without rows
         String metadataQuery = wrapQueryForMetadata(sqlQuery);
+        log.debug("Executing metadata query: {}", metadataQuery);
 
         jdbcTemplate.query(metadataQuery, rs -> {
             ResultSetMetaData metaData = rs.getMetaData();
             int columnCount = metaData.getColumnCount();
+            log.debug("Found {} columns in result set", columnCount);
 
             for (int i = 1; i <= columnCount; i++) {
                 String name = metaData.getColumnName(i);
@@ -82,6 +86,9 @@ public class DynamicQueryGridService {
                 boolean nullable = metaData.isNullable(i) == ResultSetMetaData.columnNullable;
                 Class<?> javaType = mapSqlTypeToJavaType(sqlType);
 
+                log.debug("Column {}: name={}, label={}, sqlType={}, javaType={}", 
+                         i, name, label, getSqlTypeName(sqlType), javaType.getSimpleName());
+                
                 columns.add(new ColumnMetadata(name, label, sqlType, nullable, javaType));
             }
         });
@@ -126,15 +133,17 @@ public class DynamicQueryGridService {
 
             // Apply different renderers based on data type
             if (col.javaType() == LocalDate.class) {
-                column = grid.addColumn(new LocalDateRenderer<>(
-                        item -> (LocalDate) item.get(col.name()),
-                        DateTimeFormatter.ofPattern("MM/dd/yyyy")  // Simple MM/dd/yyyy pattern
-                ));
+                // Use a string converter instead of LocalDateRenderer to avoid pattern issues
+                column = grid.addColumn(item -> {
+                    LocalDate date = (LocalDate) item.get(col.name());
+                    return date != null ? date.toString() : "";  // Use default ISO format
+                });
             } else if (col.javaType() == LocalDateTime.class) {
-                column = grid.addColumn(new LocalDateTimeRenderer<>(
-                        item -> (LocalDateTime) item.get(col.name()),
-                        DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss")  // Standard datetime pattern
-                ));
+                // Use a string converter instead of LocalDateTimeRenderer to avoid pattern issues
+                column = grid.addColumn(item -> {
+                    LocalDateTime dateTime = (LocalDateTime) item.get(col.name());
+                    return dateTime != null ? dateTime.toString() : "";  // Use default ISO format
+                });
             } else if (col.javaType() == BigDecimal.class ||
                     col.javaType() == Double.class ||
                     col.javaType() == Float.class) {
@@ -219,6 +228,8 @@ public class DynamicQueryGridService {
                     // Build the final query with pagination and sorting
                     String finalQuery = applyOracle12cPaginationAndSorting(baseQuery, orderByClause, limit, offset);
 
+                    log.debug("Fetching data with offset {} and limit {}", offset, limit);
+                    
                     // Fetch data using JDBC template
                     List<Map<String, Object>> results = fetchData(finalQuery, columns);
 
@@ -316,168 +327,227 @@ public class DynamicQueryGridService {
 
     /**
      * Fetches data using the final query with enhanced debugging for type mismatches.
+     * Enhanced to use a debuggable named class instead of a lambda for better debugger support.
      */
-    /**
- * Fetches data using the final query with enhanced debugging for type mismatches.
- */
-private List<Map<String, Object>> fetchData(String query, List<ColumnMetadata> columns) {
-        System.out.println("Executing query: " + query);
-
-        // Print expected column types from metadata for reference
-        System.out.println("Expected column types from metadata:");
-        for (ColumnMetadata col : columns) {
-            System.out.println("  Column: " + col.name() +
-                    ", SQL Type: " + getSqlTypeName(col.sqlType()) +
-                    ", Java Type: " + col.javaType().getSimpleName());
+    private List<Map<String, Object>> fetchData(String query, List<ColumnMetadata> columns) {
+        log.info("Executing query: {}", query);
+        
+        // Log expected column types
+        logExpectedColumnTypes(columns);
+        
+        // Create a separate class for better debuggability
+        DebugRowMapper rowMapper = new DebugRowMapper(columns);
+        
+        try {
+            return jdbcTemplate.query(query, rowMapper);
+        } catch (Exception e) {
+            log.error("Query execution failed: {}", e.getMessage(), e);
+            return new ArrayList<>();
         }
-
-    // Create a custom row mapper with comprehensive error handling
-        return jdbcTemplate.query(query, (rs, rowNum) -> {
-            Map<String, Object> row = new HashMap<>();
-
-        // Examine the actual result set metadata for every row (more thorough for debugging)
-                try {
-                    ResultSetMetaData rsMetaData = rs.getMetaData();
+    }
+    
+    /**
+     * Logs the expected column types from metadata.
+     */
+    private void logExpectedColumnTypes(List<ColumnMetadata> columns) {
+        log.debug("Expected column types from metadata:");
+        for (ColumnMetadata col : columns) {
+            log.debug("  Column: {}, SQL Type: {}, Java Type: {}", 
+                    col.name(), getSqlTypeName(col.sqlType()), col.javaType().getSimpleName());
+        }
+    }
+    
+    /**
+     * A dedicated debuggable RowMapper class that allows setting breakpoints.
+     */
+    private class DebugRowMapper implements org.springframework.jdbc.core.RowMapper<Map<String, Object>> {
+        private final List<ColumnMetadata> columns;
+        private final Map<String, Integer> actualColumnTypes = new HashMap<>();
+        private boolean metadataExamined = false;
+        
+        public DebugRowMapper(List<ColumnMetadata> columns) {
+            this.columns = columns;
+        }
+        
+        @Override
+        public Map<String, Object> mapRow(ResultSet rs, int rowNum) throws SQLException {
+            log.debug("Processing row #{}", rowNum);
             
-            // Build a map of actual column names to their types
-            Map<String, Integer> actualColumnTypes = new HashMap<>();
-                    for (int i = 1; i <= rsMetaData.getColumnCount(); i++) {
-                actualColumnTypes.put(rsMetaData.getColumnName(i).toUpperCase(), rsMetaData.getColumnType(i));
+            Map<String, Object> row = new HashMap<>();
+            
+            // Examine metadata only for first row
+            if (!metadataExamined) {
+                examineResultSetMetadata(rs);
+                metadataExamined = true;
             }
-
-            // Process each expected column
+            
+            // Process each column
             for (ColumnMetadata col : columns) {
-                String columnName = col.name();
-                String upperColumnName = columnName.toUpperCase();
-
-                        try {
-                    // Special BLOB handling based on actual type detection
-                    if (actualColumnTypes.containsKey(upperColumnName)) {
-                        int actualType = actualColumnTypes.get(upperColumnName);
-                        
-                        // Check for BLOB mismatch
-                        if (actualType == Types.BLOB && col.sqlType() != Types.BLOB) {
-                            System.out.println("Type mismatch for column " + columnName + 
-                                              ": Metadata expected " + getSqlTypeName(col.sqlType()) + 
-                                              " but actual type is BLOB. Handling as BLOB.");
-                            
-                            // Always handle this column as BLOB regardless of metadata
-                            row.put(columnName, getBlobAsBytes(rs, columnName));
-                            continue;
-                            }
-                        
-                        // Check for any other type mismatch
+                processColumn(rs, row, col);
+            }
+            
+            return row;
+        }
+        
+        /**
+         * Examines ResultSet metadata for debugging type mismatches.
+         */
+        private void examineResultSetMetadata(ResultSet rs) throws SQLException {
+            try {
+                ResultSetMetaData metaData = rs.getMetaData();
+                int count = metaData.getColumnCount();
+                
+                log.debug("Actual column types from ResultSet metadata:");
+                
+                for (int i = 1; i <= count; i++) {
+                    String name = metaData.getColumnName(i);
+                    int type = metaData.getColumnType(i);
+                    String typeName = metaData.getColumnTypeName(i);
+                    
+                    log.debug("  Column: {}, SQL Type: {} ({})", name, getSqlTypeName(type), typeName);
+                    
+                    // Cache for later use
+                    actualColumnTypes.put(name.toUpperCase(), type);
+                }
+                
+                // Log any potential mismatches
+                for (ColumnMetadata col : columns) {
+                    String upperName = col.name().toUpperCase();
+                    if (actualColumnTypes.containsKey(upperName)) {
+                        int actualType = actualColumnTypes.get(upperName);
                         if (actualType != col.sqlType()) {
-                            System.out.println("Potential type mismatch for column " + columnName + 
-                                              ": Expected " + getSqlTypeName(col.sqlType()) + 
-                                              " but actual type is " + getSqlTypeName(actualType) + 
-                                              ". Using actual type for conversion.");
-                            
-                            // Use a temporary ColumnMetadata with the correct type
-                            ColumnMetadata adjustedCol = new ColumnMetadata(
-                                col.name(), col.label(), actualType, col.nullable(), 
-                                mapSqlTypeToJavaType(actualType)
-                            );
-                            
-                            // Use the corrected type for conversion
-                            row.put(columnName, getTypedValue(rs, adjustedCol));
-                            continue;
-                        }
-                    }
-
-                    // Standard processing path when metadata matches
-                    Object value = getTypedValue(rs, col);
-                    row.put(columnName, value);
-
-                } catch (SQLException e) {
-                    String errorMsg = "Error processing column " + columnName + ": " + e.getMessage();
-                    System.err.println(errorMsg);
-
-                    // Add specialized error handling for known Oracle errors
-                    if (e.getMessage().contains("ORA-00932")) {
-                        System.err.println("  Oracle inconsistent datatype error detected!");
-                        System.err.println("  Expected: " + getSqlTypeName(col.sqlType()));
-
-                        // Try to get the column as a BLOB as a fallback
-                        try {
-                            System.err.println("  Attempting to retrieve as BLOB...");
-                            byte[] blobData = getBlobAsBytes(rs, columnName);
-                            System.err.println("  Successfully retrieved as BLOB: " + 
-                                             (blobData != null ? blobData.length + " bytes" : "null"));
-                            row.put(columnName, blobData);
-                        } catch (SQLException blobEx) {
-                            System.err.println("  BLOB fallback failed: " + blobEx.getMessage());
-
-                            // Try as a string as last resort
-                            try {
-                                String strValue = rs.getString(columnName);
-                                System.err.println("  Falling back to string: " + 
-                                                 (strValue != null ? "length=" + strValue.length() : "null"));
-                                row.put(columnName, strValue);
-                            } catch (SQLException strEx) {
-                                System.err.println("  String fallback also failed. Setting to null.");
-                                row.put(columnName, null);
-                                }
+                            log.warn("Column type mismatch detected for '{}': Expected {} but got {} in result set", 
+                                    col.name(), getSqlTypeName(col.sqlType()), getSqlTypeName(actualType));
                         }
                     } else {
-                        // For other errors, set to null
-                        System.err.println("  Setting column to null due to error");
+                        log.warn("Column '{}' from metadata not found in actual result set", col.name());
+                    }
+                }
+                
+            } catch (SQLException e) {
+                log.error("Error examining ResultSet metadata: {}", e.getMessage(), e);
+                throw e;
+            }
+        }
+        
+        /**
+         * Processes an individual column with type mismatch detection.
+         */
+        private void processColumn(ResultSet rs, Map<String, Object> row, ColumnMetadata col) {
+            String columnName = col.name();
+            String upperColumnName = columnName.toUpperCase();
+            
+            try {
+                // First check for type mismatches
+                if (actualColumnTypes.containsKey(upperColumnName)) {
+                    int actualType = actualColumnTypes.get(upperColumnName);
+                    
+                    // Special handling for BLOB mismatches (common issue)
+                    if (actualType == Types.BLOB && col.sqlType() != Types.BLOB) {
+                        log.debug("Handling column '{}' as BLOB due to type mismatch", columnName);
+                        row.put(columnName, getBlobAsBytes(rs, columnName));
+                        return;
+                    }
+                    
+                    // Handle other type mismatches
+                    if (actualType != col.sqlType()) {
+                        log.debug("Using actual type {} instead of expected {} for column '{}'", 
+                                getSqlTypeName(actualType), getSqlTypeName(col.sqlType()), columnName);
+                        
+                        ColumnMetadata adjustedCol = new ColumnMetadata(
+                            col.name(), col.label(), actualType, col.nullable(),
+                            mapSqlTypeToJavaType(actualType)
+                        );
+                        
+                        row.put(columnName, getTypedValue(rs, adjustedCol));
+                        return;
+                    }
+                }
+                
+                // Normal processing path - no mismatch
+                Object value = getTypedValue(rs, col);
+                row.put(columnName, value);
+                
+            } catch (SQLException e) {
+                handleColumnError(rs, row, col, e);
+            }
+        }
+        
+        /**
+         * Handles errors when processing a column.
+         */
+        private void handleColumnError(ResultSet rs, Map<String, Object> row, ColumnMetadata col, SQLException e) {
+            String columnName = col.name();
+            
+            log.error("Error processing column '{}': {}", columnName, e.getMessage());
+            
+            // Specialized handling for ORA-00932 (inconsistent datatypes)
+            if (e.getMessage().contains("ORA-00932")) {
+                log.warn("Oracle inconsistent datatype error for column '{}'", columnName);
+                
+                // Try BLOB approach first
+                try {
+                    log.debug("Attempting to retrieve '{}' as BLOB", columnName);
+                    byte[] blobData = getBlobAsBytes(rs, columnName);
+                    row.put(columnName, blobData);
+                    log.debug("Successfully retrieved as BLOB: {} bytes", 
+                              blobData != null ? blobData.length : 0);
+                } catch (SQLException blobEx) {
+                    log.debug("BLOB fallback failed: {}", blobEx.getMessage());
+                    
+                    // Try string as fallback
+                    try {
+                        log.debug("Attempting to retrieve '{}' as String", columnName);
+                        String strValue = rs.getString(columnName);
+                        row.put(columnName, strValue);
+                        log.debug("Successfully retrieved as String: {}", 
+                                 strValue != null ? strValue.length() + " chars" : "null");
+                    } catch (SQLException strEx) {
+                        log.error("All fallback approaches failed for column '{}'. Setting to null", columnName);
                         row.put(columnName, null);
                     }
                 }
+            } else {
+                // For other errors, just set to null
+                log.debug("Setting column '{}' to null due to error", columnName);
+                row.put(columnName, null);
             }
-            
-        } catch (SQLException metaEx) {
-            System.err.println("Error examining result set metadata: " + metaEx.getMessage());
-            
-            // Fallback to basic column processing without metadata correction
-            for (ColumnMetadata col : columns) {
-                try {
-                    Object value = getTypedValue(rs, col);
-                    row.put(col.name(), value);
-                } catch (SQLException e) {
-                    System.err.println("Error fetching column " + col.name() + " in fallback mode: " + e.getMessage());
-                        row.put(col.name(), null);
-                    }
-                }
-            }
-
-            return row;
-        });
+        }
     }
 
-/**
- * Enhanced BLOB handling with better error reporting.
- */
-private byte[] getBlobAsBytes(ResultSet rs, String columnName) throws SQLException {
-    try {
-        java.sql.Blob blob = rs.getBlob(columnName);
-        if (blob == null) {
-            return null;
+    /**
+     * Enhanced BLOB handling with better error reporting.
+     */
+    private byte[] getBlobAsBytes(ResultSet rs, String columnName) throws SQLException {
+        try {
+            java.sql.Blob blob = rs.getBlob(columnName);
+            if (blob == null) {
+                log.debug("BLOB is null for column '{}'", columnName);
+                return null;
+            }
+            
+            // Get blob length
+            long length = blob.length();
+            log.debug("Retrieved BLOB for column '{}' with length: {} bytes", columnName, length);
+            
+            // JDBC BLOBs are 1-indexed
+            byte[] blobBytes = blob.getBytes(1, (int)length);
+            
+            // Free BLOB resource when done
+            blob.free();
+            
+            return blobBytes;
+        } catch (SQLException e) {
+            log.error("Error processing BLOB for column '{}': {}", columnName, e.getMessage());
+            
+            // Additional error info for specific Oracle BLOB errors
+            if (e.getMessage().contains("ORA-01213") || e.getMessage().contains("Invalid LOB locator")) {
+                log.warn("This is likely a temporary LOB that has expired or been freed");
+            }
+            
+            throw e;  // Re-throw to allow other handling approaches
         }
-        
-        // Get blob length
-        long length = blob.length();
-        System.out.println("Retrieved BLOB for column " + columnName + " with length: " + length + " bytes");
-        
-        // JDBC BLOBs are 1-indexed
-        byte[] blobBytes = blob.getBytes(1, (int)length);
-        
-        // Free BLOB resource when done
-        blob.free();
-        
-        return blobBytes;
-    } catch (SQLException e) {
-        System.err.println("Error processing BLOB for column " + columnName + ": " + e.getMessage());
-        
-        // Additional error info for specific Oracle BLOB errors
-        if (e.getMessage().contains("ORA-01213") || e.getMessage().contains("Invalid LOB locator")) {
-            System.err.println("  This is likely a temporary LOB that has expired or been freed.");
-        }
-        
-        throw e;  // Re-throw to allow other handling approaches
     }
-}
 
     /**
      * Gets SQL type name from java.sql.Types constant
@@ -540,63 +610,45 @@ private byte[] getBlobAsBytes(ResultSet rs, String columnName) throws SQLExcepti
 
     /**
      * Gets a properly typed value from the ResultSet based on column metadata.
-     * Uses pattern matching (JDK 21 feature).
      */
     private Object getTypedValue(ResultSet rs, ColumnMetadata col) throws SQLException {
-        if (rs.getObject(col.name()) == null) {
-            return null;
-        }
-
-        // Handle different types with pattern matching
-        return switch (col.sqlType()) {
-            case Types.CHAR, Types.VARCHAR, Types.LONGVARCHAR,
-                 Types.NCHAR, Types.NVARCHAR, Types.LONGNVARCHAR, Types.CLOB -> rs.getString(col.name());
-            case Types.NUMERIC, Types.DECIMAL -> rs.getBigDecimal(col.name());
-            case Types.BIT, Types.BOOLEAN -> rs.getBoolean(col.name());
-            case Types.TINYINT, Types.SMALLINT, Types.INTEGER -> rs.getInt(col.name());
-            case Types.BIGINT -> rs.getLong(col.name());
-            case Types.REAL, Types.FLOAT, Types.DOUBLE -> rs.getDouble(col.name());
-            case Types.DATE -> rs.getDate(col.name()) != null ?
-                    rs.getDate(col.name()).toLocalDate() : null;
-            case Types.TIMESTAMP -> rs.getTimestamp(col.name()) != null ?
-                    rs.getTimestamp(col.name()).toLocalDateTime() : null;
-            case Types.BLOB -> getBlobAsBytes(rs, col.name());
-            case Types.BINARY, Types.VARBINARY, Types.LONGVARBINARY -> rs.getBytes(col.name());
-            default -> {
-                // For unknown or complex types, try getString first
-                try {
-                    yield rs.getString(col.name());
-                } catch (SQLException e) {
-                    // If getString fails, try getting as an Object
-                    yield rs.getObject(col.name());
-                }
-            }
-        };
-    }
-
-    /**
-     * Converts a BLOB to a byte array safely.
-     */
-    private byte[] getBlobAsBytes(ResultSet rs, String columnName) throws SQLException {
-        java.sql.Blob blob = rs.getBlob(columnName);
-        if (blob == null) {
+        String columnName = col.name();
+        
+        // Check for null first
+        if (rs.getObject(columnName) == null) {
             return null;
         }
 
         try {
-            // Get blob length
-            long length = blob.length();
-
-            // JDBC BLOBs are 1-indexed
-            byte[] blobBytes = blob.getBytes(1, (int)length);
-
-            // Free BLOB resource when done
-            blob.free();
-
-            return blobBytes;
-        } catch (Exception e) {
-            System.err.println("Error reading BLOB data: " + e.getMessage());
-            return null;
+            // Handle different types
+            return switch (col.sqlType()) {
+                case Types.CHAR, Types.VARCHAR, Types.LONGVARCHAR,
+                     Types.NCHAR, Types.NVARCHAR, Types.LONGNVARCHAR, Types.CLOB -> rs.getString(columnName);
+                case Types.NUMERIC, Types.DECIMAL -> rs.getBigDecimal(columnName);
+                case Types.BIT, Types.BOOLEAN -> rs.getBoolean(columnName);
+                case Types.TINYINT, Types.SMALLINT, Types.INTEGER -> rs.getInt(columnName);
+                case Types.BIGINT -> rs.getLong(columnName);
+                case Types.REAL, Types.FLOAT, Types.DOUBLE -> rs.getDouble(columnName);
+                case Types.DATE -> rs.getDate(columnName) != null ?
+                        rs.getDate(columnName).toLocalDate() : null;
+                case Types.TIMESTAMP -> rs.getTimestamp(columnName) != null ?
+                        rs.getTimestamp(columnName).toLocalDateTime() : null;
+                case Types.BLOB -> getBlobAsBytes(rs, columnName);
+                case Types.BINARY, Types.VARBINARY, Types.LONGVARBINARY -> rs.getBytes(columnName);
+                default -> {
+                    // For unknown or complex types, try getString first
+                    try {
+                        yield rs.getString(columnName);
+                    } catch (SQLException e) {
+                        // If getString fails, try getting as an Object
+                        yield rs.getObject(columnName);
+                    }
+                }
+            };
+        } catch (SQLException e) {
+            log.warn("Error getting column '{}' as type {}: {}", 
+                    columnName, getSqlTypeName(col.sqlType()), e.getMessage());
+            throw e;
         }
     }
 
@@ -606,8 +658,16 @@ private byte[] getBlobAsBytes(ResultSet rs, String columnName) throws SQLExcepti
     private int countTotalResults(String baseQuery) {
         // Create a count query from the base query
         String countQuery = buildCountQuery(baseQuery);
-        Integer count = jdbcTemplate.queryForObject(countQuery, Integer.class);
-        return count != null ? count : 0;
+        log.debug("Executing count query: {}", countQuery);
+        
+        try {
+            Integer count = jdbcTemplate.queryForObject(countQuery, Integer.class);
+            log.debug("Total row count: {}", count);
+            return count != null ? count : 0;
+        } catch (Exception e) {
+            log.error("Error executing count query: {}", e.getMessage(), e);
+            return 0;
+        }
     }
 
     /**
@@ -646,18 +706,19 @@ private byte[] getBlobAsBytes(ResultSet rs, String columnName) throws SQLExcepti
      */
     public byte[] getBlobData(String tableName, String blobColumn, String keyColumn, Object keyValue) {
         String query = "SELECT " + blobColumn + " FROM " + tableName + " WHERE " + keyColumn + " = ?";
+        log.debug("Executing BLOB fetch query: {}", query);
 
         try {
             return jdbcTemplate.queryForObject(query, (rs, rowNum) -> {
                 try {
                     return getBlobAsBytes(rs, blobColumn);
                 } catch (SQLException e) {
-                    System.err.println("Error retrieving BLOB data: " + e.getMessage());
+                    log.error("Error retrieving BLOB data: {}", e.getMessage(), e);
                     return null;
                 }
             }, keyValue);
         } catch (Exception e) {
-            System.err.println("Error executing BLOB query: " + e.getMessage());
+            log.error("Error executing BLOB query: {}", e.getMessage(), e);
             return null;
         }
     }
