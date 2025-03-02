@@ -1,0 +1,65 @@
+/* styles/dynamic-grid.css */
+
+/* SQL editor styling */
+.sql-editor {
+    background-color: var(--lumo-contrast-5pct);
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    padding: var(--lumo-space-s);
+    border-radius: var(--lumo-border-radius-m);
+    transition: background-color 0.3s;
+}
+
+.sql-editor:focus {
+    outline: 2px solid var(--lumo-primary-color-50pct);
+    background-color: var(--lumo-base-color);
+}
+
+/* Status bar styling */
+.status-bar {
+    background-color: var(--lumo-contrast-5pct);
+    padding: var(--lumo-space-xs) var(--lumo-space-s);
+    font-size: var(--lumo-font-size-s);
+    color: var(--lumo-secondary-text-color);
+    border-radius: var(--lumo-border-radius-s);
+    margin-top: var(--lumo-space-xs);
+    margin-bottom: var(--lumo-space-xs);
+}
+
+/* Highlight effect for grid updates */
+.highlight {
+    animation: fade-highlight 1s ease-out;
+}
+
+@keyframes fade-highlight {
+    0% {
+        background-color: var(--lumo-primary-color-10pct);
+    }
+    100% {
+        background-color: transparent;
+    }
+}
+
+/* Grid optimizations */
+vaadin-grid::part(header-cell) {
+    background: var(--lumo-base-color);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+vaadin-grid::part(resize-handle) {
+    width: 8px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+vaadin-grid::part(header-cell):hover vaadin-grid::part(resize-handle) {
+    opacity: 1;
+}
+
+vaadin-grid::part(resize-handle):hover,
+vaadin-grid::part(resize-handle):active {
+    opacity: 1;
+    background-color: var(--lumo-primary-color);
+}
