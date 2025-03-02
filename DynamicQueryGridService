@@ -128,12 +128,12 @@ public class DynamicQueryGridService {
             if (col.javaType() == LocalDate.class) {
                 column = grid.addColumn(new LocalDateRenderer<>(
                     item -> (LocalDate) item.get(col.name()),
-                    DateTimeFormatter.ofPattern("MM/dd/yyyy")
+                    DateTimeFormatter.ofPattern("MM/dd/yyyy")  // Simple MM/dd/yyyy pattern
                 ));
             } else if (col.javaType() == LocalDateTime.class) {
                 column = grid.addColumn(new LocalDateTimeRenderer<>(
                     item -> (LocalDateTime) item.get(col.name()),
-                    DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss")
+                    DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss")  // Standard datetime pattern
                 ));
             } else if (col.javaType() == BigDecimal.class || 
                        col.javaType() == Double.class || 
@@ -187,9 +187,13 @@ public class DynamicQueryGridService {
      * Formats a database column name into a readable header.
      */
     private String formatColumnHeader(String dbColumnName) {
+        if (dbColumnName == null || dbColumnName.isEmpty()) {
+            return "Column";
+        }
+        
         return Arrays.stream(dbColumnName.replace("_", " ").split("\\s+"))
-                .map(word -> !word.isEmpty() ? 
-                    word.substring(0, 1).toUpperCase() + word.substring(1).toLowerCase() : "")
+                .filter(word -> !word.isEmpty())
+                .map(word -> word.substring(0, 1).toUpperCase() + word.substring(1).toLowerCase())
                 .collect(Collectors.joining(" "));
     }
     
