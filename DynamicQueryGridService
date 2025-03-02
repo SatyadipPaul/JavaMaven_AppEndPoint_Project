@@ -39,11 +39,6 @@ public class DynamicQueryGridService {
             boolean nullable,
             Class<?> javaType) {}
     
-    public record QueryResult(
-            List<ColumnMetadata> columns,
-            List<Map<String, Object>> rows,
-            int totalCount) {}
-    
     /**
      * Creates a dynamic Grid based on an SQL query with lazy loading.
      * 
@@ -147,6 +142,16 @@ public class DynamicQueryGridService {
                     item -> item.get(col.name()) instanceof Number n ? n.doubleValue() : 0.0,
                     "%.2f"
                 ));
+            } else if (col.javaType() == byte[].class) {
+                // Special handling for binary data like BLOBs
+                column = grid.addColumn(item -> {
+                    byte[] data = (byte[]) item.get(col.name());
+                    if (data == null) {
+                        return "No data";
+                    } else {
+                        return formatByteSize(data.length);
+                    }
+                });
             } else {
                 // Default renderer with null handling
                 column = grid.addColumn(item -> {
@@ -164,11 +169,27 @@ public class DynamicQueryGridService {
     }
     
     /**
+     * Formats byte size to human-readable format.
+     */
+    private String formatByteSize(long bytes) {
+        if (bytes < 1024) {
+            return bytes + " bytes";
+        } else if (bytes < 1024 * 1024) {
+            return String.format("%.2f KB", bytes / 1024.0);
+        } else if (bytes < 1024 * 1024 * 1024) {
+            return String.format("%.2f MB", bytes / (1024.0 * 1024));
+        } else {
+            return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
+        }
+    }
+    
+    /**
      * Formats a database column name into a readable header.
      */
     private String formatColumnHeader(String dbColumnName) {
         return Arrays.stream(dbColumnName.replace("_", " ").split("\\s+"))
-                .map(word -> word.substring(0, 1).toUpperCase() + word.substring(1).toLowerCase())
+                .map(word -> !word.isEmpty() ? 
+                    word.substring(0, 1).toUpperCase() + word.substring(1).toLowerCase() : "")
                 .collect(Collectors.joining(" "));
     }
     
@@ -192,7 +213,7 @@ public class DynamicQueryGridService {
                 String orderByClause = buildOrderByClause(sortOrders);
                 
                 // Build the final query with pagination and sorting
-                String finalQuery = applyOraclePaginationAndSorting(baseQuery, orderByClause, limit, offset);
+                String finalQuery = applyOracle12cPaginationAndSorting(baseQuery, orderByClause, limit, offset);
                 
                 // Fetch data using JDBC template
                 List<Map<String, Object>> results = fetchData(finalQuery, columns);
@@ -243,7 +264,7 @@ public class DynamicQueryGridService {
             innerQuery += " ORDER BY " + orderByClause;
         }
         
-        // For Oracle 12c+ we can use ROW_NUMBER() OVER() and OFFSET/FETCH
+        // For Oracle pre-12c we use ROWNUM with MINUS
         queryBuilder.append("SELECT * FROM (");
         queryBuilder.append(innerQuery);
         queryBuilder.append(") WHERE ROWNUM <= ").append(offset + limit);
@@ -296,9 +317,15 @@ public class DynamicQueryGridService {
         return jdbcTemplate.query(query, (rs, rowNum) -> {
             Map<String, Object> row = new HashMap<>();
             for (ColumnMetadata col : columns) {
-                // Use pattern matching for appropriate type conversion
-                Object value = getTypedValue(rs, col);
-                row.put(col.name(), value);
+                try {
+                    // Use pattern matching for appropriate type conversion
+                    Object value = getTypedValue(rs, col);
+                    row.put(col.name(), value);
+                } catch (SQLException e) {
+                    // Log the error and set null for problematic columns
+                    System.err.println("Error fetching column " + col.name() + ": " + e.getMessage());
+                    row.put(col.name(), null);
+                }
             }
             return row;
         });
@@ -309,10 +336,14 @@ public class DynamicQueryGridService {
      * Uses pattern matching (JDK 21 feature).
      */
     private Object getTypedValue(ResultSet rs, ColumnMetadata col) throws SQLException {
+        if (rs.getObject(col.name()) == null) {
+            return null;
+        }
+        
         // Handle different types with pattern matching
         return switch (col.sqlType()) {
             case Types.CHAR, Types.VARCHAR, Types.LONGVARCHAR, 
-                 Types.NCHAR, Types.NVARCHAR, Types.LONGNVARCHAR -> rs.getString(col.name());
+                 Types.NCHAR, Types.NVARCHAR, Types.LONGNVARCHAR, Types.CLOB -> rs.getString(col.name());
             case Types.NUMERIC, Types.DECIMAL -> rs.getBigDecimal(col.name());
             case Types.BIT, Types.BOOLEAN -> rs.getBoolean(col.name());
             case Types.TINYINT, Types.SMALLINT, Types.INTEGER -> rs.getInt(col.name());
@@ -322,8 +353,44 @@ public class DynamicQueryGridService {
                                rs.getDate(col.name()).toLocalDate() : null;
             case Types.TIMESTAMP -> rs.getTimestamp(col.name()) != null ? 
                                    rs.getTimestamp(col.name()).toLocalDateTime() : null;
-            default -> rs.getObject(col.name());
+            case Types.BLOB -> getBlobAsBytes(rs, col.name());
+            case Types.BINARY, Types.VARBINARY, Types.LONGVARBINARY -> rs.getBytes(col.name());
+            default -> {
+                // For unknown or complex types, try getString first
+                try {
+                    yield rs.getString(col.name());
+                } catch (SQLException e) {
+                    // If getString fails, try getting as an Object
+                    yield rs.getObject(col.name());
+                }
+            }
         };
+    }
+    
+    /**
+     * Converts a BLOB to a byte array safely.
+     */
+    private byte[] getBlobAsBytes(ResultSet rs, String columnName) throws SQLException {
+        java.sql.Blob blob = rs.getBlob(columnName);
+        if (blob == null) {
+            return null;
+        }
+        
+        try {
+            // Get blob length
+            long length = blob.length();
+            
+            // JDBC BLOBs are 1-indexed
+            byte[] blobBytes = blob.getBytes(1, (int)length);
+            
+            // Free BLOB resource when done
+            blob.free();
+            
+            return blobBytes;
+        } catch (Exception e) {
+            System.err.println("Error reading BLOB data: " + e.getMessage());
+            return null;
+        }
     }
     
     /**
@@ -364,5 +431,27 @@ public class DynamicQueryGridService {
         }
         
         return query;
+    }
+    
+    /**
+     * Provides direct access to retrieve a BLOB as byte array for external use.
+     * Useful for downloading BLOB data.
+     */
+    public byte[] getBlobData(String tableName, String blobColumn, String keyColumn, Object keyValue) {
+        String query = "SELECT " + blobColumn + " FROM " + tableName + " WHERE " + keyColumn + " = ?";
+        
+        try {
+            return jdbcTemplate.queryForObject(query, (rs, rowNum) -> {
+                try {
+                    return getBlobAsBytes(rs, blobColumn);
+                } catch (SQLException e) {
+                    System.err.println("Error retrieving BLOB data: " + e.getMessage());
+                    return null;
+                }
+            }, keyValue);
+        } catch (Exception e) {
+            System.err.println("Error executing BLOB query: " + e.getMessage());
+            return null;
+        }
     }
 }
