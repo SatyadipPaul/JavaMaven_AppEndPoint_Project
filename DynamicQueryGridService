@@ -2,7 +2,6 @@ package com.example.dynamicgrid;
 
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
-import com.vaadin.flow.data.provider.CallbackDataProvider;
 import com.vaadin.flow.data.provider.DataProvider;
 import com.vaadin.flow.data.provider.QuerySortOrder;
 import com.vaadin.flow.data.provider.SortDirection;
@@ -24,9 +23,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Service
 public class DynamicQueryGridService {
@@ -71,14 +68,13 @@ public class DynamicQueryGridService {
     }
     
     /**
-     * Gets column metadata from the query by executing a limited query.
+     * Gets column metadata from the query by executing a query that fetches no rows.
      */
     private List<ColumnMetadata> getColumnMetadata(String sqlQuery) {
         List<ColumnMetadata> columns = new ArrayList<>();
         
-        // Execute query with limit 0 to just get metadata
-        String metadataQuery = sqlQuery.toLowerCase().contains("limit") ? 
-            sqlQuery : sqlQuery + " LIMIT 0";
+        // For Oracle, use ROWNUM <= 0 to get metadata without rows
+        String metadataQuery = wrapQueryForMetadata(sqlQuery);
             
         jdbcTemplate.query(metadataQuery, rs -> {
             ResultSetMetaData metaData = rs.getMetaData();
@@ -96,6 +92,15 @@ public class DynamicQueryGridService {
         });
         
         return columns;
+    }
+    
+    /**
+     * Wraps a query to fetch metadata only without returning actual rows.
+     * Oracle-specific implementation.
+     */
+    private String wrapQueryForMetadata(String query) {
+        // For Oracle: use ROWNUM to limit to 0 rows
+        return "SELECT * FROM (" + query + ") WHERE ROWNUM <= 0";
     }
     
     /**
@@ -187,7 +192,7 @@ public class DynamicQueryGridService {
                 String orderByClause = buildOrderByClause(sortOrders);
                 
                 // Build the final query with pagination and sorting
-                String finalQuery = applyPaginationAndSorting(baseQuery, orderByClause, limit, offset);
+                String finalQuery = applyOraclePaginationAndSorting(baseQuery, orderByClause, limit, offset);
                 
                 // Fetch data using JDBC template
                 List<Map<String, Object>> results = fetchData(finalQuery, columns);
@@ -216,13 +221,52 @@ public class DynamicQueryGridService {
     }
     
     /**
-     * Applies pagination and sorting to the base query.
+     * Applies Oracle-specific pagination and sorting to the base query.
      */
-    private String applyPaginationAndSorting(String baseQuery, 
-                                             String orderByClause, 
-                                             int limit, 
-                                             int offset) {
-        StringBuilder queryBuilder = new StringBuilder(baseQuery);
+    private String applyOraclePaginationAndSorting(String baseQuery, 
+                                                  String orderByClause, 
+                                                  int limit, 
+                                                  int offset) {
+        StringBuilder queryBuilder = new StringBuilder();
+        
+        // Start with the base query
+        String innerQuery = baseQuery;
+        
+        // Remove existing ORDER BY if present before adding new one
+        int orderByIndex = baseQuery.toLowerCase().lastIndexOf("order by");
+        if (orderByIndex != -1) {
+            innerQuery = baseQuery.substring(0, orderByIndex);
+        }
+        
+        // Add ORDER BY if provided
+        if (!orderByClause.isEmpty()) {
+            innerQuery += " ORDER BY " + orderByClause;
+        }
+        
+        // For Oracle 12c+ we can use ROW_NUMBER() OVER() and OFFSET/FETCH
+        queryBuilder.append("SELECT * FROM (");
+        queryBuilder.append(innerQuery);
+        queryBuilder.append(") WHERE ROWNUM <= ").append(offset + limit);
+        queryBuilder.append(" MINUS ");
+        queryBuilder.append("SELECT * FROM (");
+        queryBuilder.append(innerQuery);
+        queryBuilder.append(") WHERE ROWNUM <= ").append(offset);
+        
+        return queryBuilder.toString();
+    }
+    
+    /**
+     * Alternative pagination method using Oracle 12c+ OFFSET/FETCH syntax.
+     * Use this if your Oracle version supports it (12c and above).
+     */
+    private String applyOracle12cPaginationAndSorting(String baseQuery, 
+                                                     String orderByClause, 
+                                                     int limit, 
+                                                     int offset) {
+        StringBuilder queryBuilder = new StringBuilder();
+        
+        // Start with the base query
+        queryBuilder.append(baseQuery);
         
         // Remove existing ORDER BY if present before adding new one
         int orderByIndex = baseQuery.toLowerCase().lastIndexOf("order by");
@@ -230,14 +274,17 @@ public class DynamicQueryGridService {
             queryBuilder = new StringBuilder(baseQuery.substring(0, orderByIndex));
         }
         
-        // Add new ORDER BY if provided
+        // Add ORDER BY if provided
         if (!orderByClause.isEmpty()) {
             queryBuilder.append(" ORDER BY ").append(orderByClause);
+        } else {
+            // Oracle requires an ORDER BY clause for OFFSET/FETCH
+            queryBuilder.append(" ORDER BY 1");
         }
         
-        // Add LIMIT and OFFSET for pagination
-        queryBuilder.append(" LIMIT ").append(limit);
-        queryBuilder.append(" OFFSET ").append(offset);
+        // Add OFFSET/FETCH for pagination (Oracle 12c+ syntax)
+        queryBuilder.append(" OFFSET ").append(offset).append(" ROWS");
+        queryBuilder.append(" FETCH NEXT ").append(limit).append(" ROWS ONLY");
         
         return queryBuilder.toString();
     }
@@ -293,23 +340,27 @@ public class DynamicQueryGridService {
      * Builds a count query from the base query.
      */
     private String buildCountQuery(String baseQuery) {
-        // Remove ORDER BY and LIMIT clauses if present
-        String cleanQuery = removeOrderByAndLimit(baseQuery);
-        return "SELECT COUNT(*) FROM (" + cleanQuery + ") AS count_query";
+        // Remove ORDER BY and ROWNUM clauses if present
+        String cleanQuery = removeOrderByAndRownum(baseQuery);
+        return "SELECT COUNT(*) FROM (" + cleanQuery + ")";
     }
     
     /**
-     * Removes ORDER BY and LIMIT clauses from a query.
+     * Removes ORDER BY and ROWNUM clauses from a query.
      */
-    private String removeOrderByAndLimit(String query) {
+    private String removeOrderByAndRownum(String query) {
         String lowerQuery = query.toLowerCase();
-        int orderByIndex = lowerQuery.lastIndexOf("order by");
-        int limitIndex = lowerQuery.lastIndexOf("limit");
         
-        if (limitIndex != -1) {
-            return query.substring(0, limitIndex);
-        } else if (orderByIndex != -1) {
+        // Remove ORDER BY clause
+        int orderByIndex = lowerQuery.lastIndexOf("order by");
+        if (orderByIndex != -1) {
             return query.substring(0, orderByIndex);
+        }
+        
+        // If there's a WHERE ROWNUM condition, try to remove it
+        int whereRownumIndex = lowerQuery.indexOf("where rownum");
+        if (whereRownumIndex != -1) {
+            return query.substring(0, whereRownumIndex);
         }
         
         return query;
