@@ -1,16 +1,34 @@
 package com.example.dynamicgrid;
 
+import com.vaadin.flow.component.Key;
+import com.vaadin.flow.component.KeyModifier;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.grid.GridVariant;
+import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
+import com.vaadin.flow.component.orderedlayout.FlexComponent;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.progressbar.ProgressBar;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.shared.Registration;
+import com.vaadin.flow.theme.lumo.LumoUtility;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Route("dynamic-grid")
+@CssImport("./styles/dynamic-grid.css")
 public class DynamicGridView extends VerticalLayout {
 
     private final DynamicQueryGridService gridService;
@@ -18,6 +36,9 @@ public class DynamicGridView extends VerticalLayout {
     private TextArea queryInput;
     private Button executeButton;
     private VerticalLayout gridContainer;
+    private Div statusBar;
+    private ProgressBar progressBar;
+    private AtomicReference<Registration> shortcutRegistration = new AtomicReference<>();
     
     @Autowired
     public DynamicGridView(DynamicQueryGridService gridService) {
@@ -28,46 +49,278 @@ public class DynamicGridView extends VerticalLayout {
         setSpacing(true);
         
         setupComponents();
+        registerShortcuts();
     }
     
     private void setupComponents() {
+        // Query input with enhanced styling
         queryInput = new TextArea("SQL Query");
         queryInput.setPlaceholder("Enter your SQL query here...");
         queryInput.setWidth("100%");
-        queryInput.setHeight("150px");
+        queryInput.setMinHeight("150px");
         queryInput.setValue("SELECT * FROM users");
         
-        executeButton = new Button("Execute Query", e -> executeQuery());
+        // Add custom styling for SQL editor
+        queryInput.addClassName("sql-editor");
+        queryInput.getStyle()
+                .set("font-family", "monospace")
+                .set("resize", "vertical")
+                .set("line-height", "1.4")
+                .set("tab-size", "4");
         
+        // Button bar with execute button 
+        HorizontalLayout buttonBar = new HorizontalLayout();
+        executeButton = new Button("Execute Query", new Icon(VaadinIcon.PLAY));
+        executeButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        executeButton.getElement().setAttribute("title", "Execute Query (Ctrl+Enter)");
+        executeButton.addClickListener(e -> executeQuery());
+        
+        // Progress bar shown during query execution
+        progressBar = new ProgressBar();
+        progressBar.setIndeterminate(true);
+        progressBar.setVisible(false);
+        progressBar.setWidth("100%");
+        
+        buttonBar.add(executeButton, progressBar);
+        buttonBar.setAlignItems(FlexComponent.Alignment.CENTER);
+        buttonBar.setWidthFull();
+        
+        // Status bar for feedback
+        statusBar = new Div();
+        statusBar.setText("Ready");
+        statusBar.addClassName("status-bar");
+        statusBar.setWidthFull();
+        
+        // Grid container
         gridContainer = new VerticalLayout();
         gridContainer.setSizeFull();
         gridContainer.setPadding(false);
+        gridContainer.setSpacing(false);
         
-        add(queryInput, executeButton, gridContainer);
+        add(queryInput, buttonBar, statusBar, gridContainer);
+        expand(gridContainer);
     }
     
     private void executeQuery() {
         String query = queryInput.getValue();
         
         if (query == null || query.trim().isEmpty()) {
-            Notification.show("Please enter a valid SQL query");
+            showNotification("Please enter a valid SQL query", NotificationVariant.LUMO_ERROR);
             return;
         }
         
-        try {
-            // Clear previous grid
-            gridContainer.removeAll();
+        // Set UI to loading state
+        setLoadingState(true);
+        statusBar.setText("Executing query...");
+        
+        // Show notification that query is executing
+        Notification executingNotification = showNotification(
+            "Executing query...", 
+            NotificationVariant.LUMO_CONTRAST
+        );
+        
+        // Use CompletableFuture to run query asynchronously
+        CompletableFuture.supplyAsync(() -> {
+            try {
+                long startTime = System.currentTimeMillis();
+                Grid<Map<String, Object>> grid = gridService.createDynamicGrid(query);
+                long duration = System.currentTimeMillis() - startTime;
+                return new Object[] { grid, duration };
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        })
+        .thenAccept(result -> {
+            UI.getCurrent().access(() -> {
+                // Close the executing notification
+                executingNotification.close();
+                
+                Grid<Map<String, Object>> grid = (Grid<Map<String, Object>>) result[0];
+                long duration = (Long) result[1];
+                
+                // Clear previous grid
+                gridContainer.removeAll();
+                
+                // Configure grid optimizations
+                configureGrid(grid);
+                
+                // Add to container
+                gridContainer.add(grid);
+                
+                // Update status
+                statusBar.setText("Query completed in " + duration + "ms");
+                
+                // Reset UI state
+                setLoadingState(false);
+                
+                // Show success notification
+                showNotification(
+                    "Query executed successfully in " + duration + "ms", 
+                    NotificationVariant.LUMO_SUCCESS
+                );
+                
+                // Add highlight effect to show something happened
+                gridContainer.getElement().getClassList().add("highlight");
+                UI.getCurrent().getPage().executeJs(
+                    "setTimeout(() => document.querySelector('.highlight').classList.remove('highlight'), 1000)"
+                );
+            });
+        })
+        .exceptionally(throwable -> {
+            UI.getCurrent().access(() -> {
+                // Close the executing notification
+                executingNotification.close();
+                
+                // Show error
+                Throwable rootCause = getRootCause(throwable);
+                String errorMessage = rootCause.getMessage();
+                
+                // Create an error display
+                gridContainer.removeAll();
+                
+                Div errorDiv = new Div();
+                errorDiv.addClassNames(
+                    LumoUtility.Background.ERROR_10,
+                    LumoUtility.Border.ALL,
+                    LumoUtility.BorderColor.ERROR,
+                    LumoUtility.Padding.MEDIUM,
+                    LumoUtility.BorderRadius.MEDIUM
+                );
+                
+                Div errorTitle = new Div();
+                errorTitle.setText("Error executing query");
+                errorTitle.addClassNames(
+                    LumoUtility.FontWeight.BOLD,
+                    LumoUtility.TextColor.ERROR
+                );
+                
+                TextArea errorDetails = new TextArea();
+                errorDetails.setValue(errorMessage);
+                errorDetails.setReadOnly(true);
+                errorDetails.setWidthFull();
+                errorDetails.getStyle().set("font-family", "monospace");
+                
+                errorDiv.add(errorTitle, errorDetails);
+                gridContainer.add(errorDiv);
+                
+                // Update status
+                statusBar.setText("Query failed: " + errorMessage);
+                
+                // Reset UI state
+                setLoadingState(false);
+                
+                // Show error notification
+                showNotification("Query execution failed", NotificationVariant.LUMO_ERROR);
+            });
+            return null;
+        });
+    }
+    
+    /**
+     * Configure grid for optimal performance and user experience
+     */
+    private void configureGrid(Grid<Map<String, Object>> grid) {
+        // Set size and theme variants
+        grid.setSizeFull();
+        grid.addThemeVariants(
+            GridVariant.LUMO_ROW_STRIPES, 
+            GridVariant.LUMO_COLUMN_BORDERS,
+            GridVariant.LUMO_COMPACT
+        );
+        
+        // Performance optimizations
+        grid.setPageSize(100);  // Balance between performance and user experience
+        grid.setMultiSort(false);  // Disable multi-sort for better performance
+        
+        // Column auto-fitting
+        grid.getColumns().forEach(col -> {
+            // Enable auto-width for all columns
+            col.setAutoWidth(true);
             
-            // Create new dynamic grid
-            Grid<Map<String, Object>> grid = gridService.createDynamicGrid(query);
-            grid.setSizeFull();
+            // Ensure all columns are resizable
+            col.setResizable(true);
             
-            // Add to container
-            gridContainer.add(grid);
-            
-            Notification.show("Query executed successfully");
-        } catch (Exception ex) {
-            Notification.show("Error executing query: " + ex.getMessage());
+            // Auto-fit content better
+            col.setFlexGrow(0);  // Don't let columns expand unnecessarily
+        });
+        
+        // After the grid renders, recalculate column widths once for accuracy
+        UI.getCurrent().getPage().executeJs(
+            "setTimeout(() => $0.recalculateColumnWidths(), 100)",
+            grid.getElement()
+        );
+    }
+    
+    /**
+     * Set UI loading state during query execution
+     */
+    private void setLoadingState(boolean loading) {
+        executeButton.setEnabled(!loading);
+        queryInput.setReadOnly(loading);
+        progressBar.setVisible(loading);
+        
+        if (loading) {
+            executeButton.setText("Executing...");
+            executeButton.setIcon(new Icon(VaadinIcon.HOURGLASS));
+        } else {
+            executeButton.setText("Execute Query");
+            executeButton.setIcon(new Icon(VaadinIcon.PLAY));
         }
+    }
+    
+    /**
+     * Show a notification with the given message and variant
+     */
+    private Notification showNotification(String message, NotificationVariant variant) {
+        Notification notification = Notification.show(message);
+        notification.addThemeVariants(variant);
+        notification.setPosition(Notification.Position.TOP_END);
+        notification.setDuration(3000);
+        return notification;
+    }
+    
+    /**
+     * Get root cause of an exception
+     */
+    private Throwable getRootCause(Throwable throwable) {
+        Throwable cause = throwable;
+        while (cause.getCause() != null) {
+            cause = cause.getCause();
+        }
+        return cause;
+    }
+    
+    /**
+     * Register keyboard shortcuts
+     */
+    private void registerShortcuts() {
+        // First clean up any existing registration
+        if (shortcutRegistration.get() != null) {
+            shortcutRegistration.get().remove();
+        }
+        
+        // Add a Ctrl+Enter shortcut for executing the query
+        Registration registration = UI.getCurrent().addShortcutListener(
+            () -> executeQuery(),
+            Key.ENTER,
+            KeyModifier.CONTROL
+        );
+        
+        shortcutRegistration.set(registration);
+    }
+    
+    @Override
+    protected void onAttach(AttachEvent attachEvent) {
+        super.onAttach(attachEvent);
+        registerShortcuts();
+    }
+    
+    @Override
+    protected void onDetach(DetachEvent detachEvent) {
+        if (shortcutRegistration.get() != null) {
+            shortcutRegistration.get().remove();
+            shortcutRegistration.set(null);
+        }
+        super.onDetach(detachEvent);
     }
 }
