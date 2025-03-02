@@ -30,7 +30,7 @@ public class DynamicQueryGridService {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
-    
+
     // Record definitions for immutable data structures
     public record ColumnMetadata(
             String name,
@@ -38,57 +38,57 @@ public class DynamicQueryGridService {
             int sqlType,
             boolean nullable,
             Class<?> javaType) {}
-    
+
     /**
      * Creates a dynamic Grid based on an SQL query with lazy loading.
-     * 
+     *
      * @param sqlQuery The SQL query to execute
      * @return A configured Vaadin Grid
      */
     public Grid<Map<String, Object>> createDynamicGrid(String sqlQuery) {
         // Step 1: Get column metadata from the query
         List<ColumnMetadata> columns = getColumnMetadata(sqlQuery);
-        
+
         // Step 2: Create a grid with lazy loading data provider
         Grid<Map<String, Object>> grid = new Grid<>();
         grid.addThemeVariants(GridVariant.LUMO_ROW_STRIPES, GridVariant.LUMO_COLUMN_BORDERS);
-        
+
         // Step 3: Add columns with appropriate renderers based on data types
         addColumnsToGrid(grid, columns);
-        
+
         // Step 4: Configure lazy loading data provider
         configureLazyDataProvider(grid, sqlQuery, columns);
-        
+
         return grid;
     }
-    
+
     /**
      * Gets column metadata from the query by executing a query that fetches no rows.
      */
     private List<ColumnMetadata> getColumnMetadata(String sqlQuery) {
         List<ColumnMetadata> columns = new ArrayList<>();
-        
+
         // For Oracle, use ROWNUM <= 0 to get metadata without rows
         String metadataQuery = wrapQueryForMetadata(sqlQuery);
-            
+
         jdbcTemplate.query(metadataQuery, rs -> {
             ResultSetMetaData metaData = rs.getMetaData();
             int columnCount = metaData.getColumnCount();
-            
+
             for (int i = 1; i <= columnCount; i++) {
                 String name = metaData.getColumnName(i);
                 String label = metaData.getColumnLabel(i);
                 int sqlType = metaData.getColumnType(i);
                 boolean nullable = metaData.isNullable(i) == ResultSetMetaData.columnNullable;
                 Class<?> javaType = mapSqlTypeToJavaType(sqlType);
-                
+
                 columns.add(new ColumnMetadata(name, label, sqlType, nullable, javaType));
             }
         });
-        
+
         return columns;
     }
-    
+
     /**
      * Wraps a query to fetch metadata only without returning actual rows.
      * Oracle-specific implementation.
@@ -97,13 +97,13 @@ public class DynamicQueryGridService {
         // For Oracle: use ROWNUM to limit to 0 rows
         return "SELECT * FROM (" + query + ") WHERE ROWNUM <= 0";
     }
-    
+
     /**
      * Maps SQL type to Java type.
      */
     private Class<?> mapSqlTypeToJavaType(int sqlType) {
         return switch (sqlType) {
-            case Types.CHAR, Types.VARCHAR, Types.LONGVARCHAR, Types.NCHAR, 
+            case Types.CHAR, Types.VARCHAR, Types.LONGVARCHAR, Types.NCHAR,
                  Types.NVARCHAR, Types.LONGNVARCHAR, Types.CLOB, Types.NCLOB -> String.class;
             case Types.NUMERIC, Types.DECIMAL -> BigDecimal.class;
             case Types.BIT, Types.BOOLEAN -> Boolean.class;
@@ -116,31 +116,31 @@ public class DynamicQueryGridService {
             default -> Object.class;
         };
     }
-    
+
     /**
      * Adds columns to the grid with appropriate renderers based on data types.
      */
     private void addColumnsToGrid(Grid<Map<String, Object>> grid, List<ColumnMetadata> columns) {
         for (ColumnMetadata col : columns) {
             Grid.Column<Map<String, Object>> column;
-            
+
             // Apply different renderers based on data type
             if (col.javaType() == LocalDate.class) {
                 column = grid.addColumn(new LocalDateRenderer<>(
-                    item -> (LocalDate) item.get(col.name()),
-                    DateTimeFormatter.ofPattern("MM/dd/yyyy")  // Simple MM/dd/yyyy pattern
+                        item -> (LocalDate) item.get(col.name()),
+                        DateTimeFormatter.ofPattern("MM/dd/yyyy")  // Simple MM/dd/yyyy pattern
                 ));
             } else if (col.javaType() == LocalDateTime.class) {
                 column = grid.addColumn(new LocalDateTimeRenderer<>(
-                    item -> (LocalDateTime) item.get(col.name()),
-                    DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss")  // Standard datetime pattern
+                        item -> (LocalDateTime) item.get(col.name()),
+                        DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss")  // Standard datetime pattern
                 ));
-            } else if (col.javaType() == BigDecimal.class || 
-                       col.javaType() == Double.class || 
-                       col.javaType() == Float.class) {
+            } else if (col.javaType() == BigDecimal.class ||
+                    col.javaType() == Double.class ||
+                    col.javaType() == Float.class) {
                 column = grid.addColumn(new NumberRenderer<>(
-                    item -> item.get(col.name()) instanceof Number n ? n.doubleValue() : 0.0,
-                    "%.2f"
+                        item -> item.get(col.name()) instanceof Number n ? n.doubleValue() : 0.0,
+                        "%.2f"
                 ));
             } else if (col.javaType() == byte[].class) {
                 // Special handling for binary data like BLOBs
@@ -159,15 +159,15 @@ public class DynamicQueryGridService {
                     return value != null ? value.toString() : "";
                 });
             }
-            
+
             // Configure column properties
             column.setHeader(formatColumnHeader(col.label()))
-                  .setKey(col.name())
-                  .setSortable(true)
-                  .setResizable(true);
+                    .setKey(col.name())
+                    .setSortable(true)
+                    .setResizable(true);
         }
     }
-    
+
     /**
      * Formats byte size to human-readable format.
      */
@@ -182,7 +182,7 @@ public class DynamicQueryGridService {
             return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
         }
     }
-    
+
     /**
      * Formats a database column name into a readable header.
      */
@@ -190,47 +190,47 @@ public class DynamicQueryGridService {
         if (dbColumnName == null || dbColumnName.isEmpty()) {
             return "Column";
         }
-        
+
         return Arrays.stream(dbColumnName.replace("_", " ").split("\\s+"))
                 .filter(word -> !word.isEmpty())
                 .map(word -> word.substring(0, 1).toUpperCase() + word.substring(1).toLowerCase())
                 .collect(Collectors.joining(" "));
     }
-    
+
     /**
      * Configures a lazy loading data provider for the grid.
      */
-    private void configureLazyDataProvider(Grid<Map<String, Object>> grid, 
-                                           String baseQuery, 
+    private void configureLazyDataProvider(Grid<Map<String, Object>> grid,
+                                           String baseQuery,
                                            List<ColumnMetadata> columns) {
         // Create thread pool for concurrent fetching using virtual threads (JDK 21)
         ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
-        
+
         DataProvider<Map<String, Object>, Void> dataProvider = DataProvider.fromCallbacks(
-            // First callback: Fetch items for the current page
-            query -> {
-                int offset = query.getOffset();
-                int limit = query.getLimit();
-                
-                // Handle sorting
-                List<QuerySortOrder> sortOrders = query.getSortOrders();
-                String orderByClause = buildOrderByClause(sortOrders);
-                
-                // Build the final query with pagination and sorting
-                String finalQuery = applyOracle12cPaginationAndSorting(baseQuery, orderByClause, limit, offset);
-                
-                // Fetch data using JDBC template
-                List<Map<String, Object>> results = fetchData(finalQuery, columns);
-                
-                return results.stream();
-            },
-            // Second callback: Count total results for pagination
-            query -> countTotalResults(baseQuery)
+                // First callback: Fetch items for the current page
+                query -> {
+                    int offset = query.getOffset();
+                    int limit = query.getLimit();
+
+                    // Handle sorting
+                    List<QuerySortOrder> sortOrders = query.getSortOrders();
+                    String orderByClause = buildOrderByClause(sortOrders);
+
+                    // Build the final query with pagination and sorting
+                    String finalQuery = applyOracle12cPaginationAndSorting(baseQuery, orderByClause, limit, offset);
+
+                    // Fetch data using JDBC template
+                    List<Map<String, Object>> results = fetchData(finalQuery, columns);
+
+                    return results.stream();
+                },
+                // Second callback: Count total results for pagination
+                query -> countTotalResults(baseQuery)
         );
-        
+
         grid.setDataProvider(dataProvider);
     }
-    
+
     /**
      * Builds an ORDER BY clause from Vaadin sort orders.
      */
@@ -238,36 +238,36 @@ public class DynamicQueryGridService {
         if (sortOrders.isEmpty()) {
             return "";
         }
-        
+
         return sortOrders.stream()
-            .map(order -> order.getSorted() + " " + 
-                 (order.getDirection() == SortDirection.ASCENDING ? "ASC" : "DESC"))
-            .collect(Collectors.joining(", "));
+                .map(order -> order.getSorted() + " " +
+                        (order.getDirection() == SortDirection.ASCENDING ? "ASC" : "DESC"))
+                .collect(Collectors.joining(", "));
     }
-    
+
     /**
      * Applies Oracle-specific pagination and sorting to the base query.
      */
-    private String applyOraclePaginationAndSorting(String baseQuery, 
-                                                  String orderByClause, 
-                                                  int limit, 
-                                                  int offset) {
+    private String applyOraclePaginationAndSorting(String baseQuery,
+                                                   String orderByClause,
+                                                   int limit,
+                                                   int offset) {
         StringBuilder queryBuilder = new StringBuilder();
-        
+
         // Start with the base query
         String innerQuery = baseQuery;
-        
+
         // Remove existing ORDER BY if present before adding new one
         int orderByIndex = baseQuery.toLowerCase().lastIndexOf("order by");
         if (orderByIndex != -1) {
             innerQuery = baseQuery.substring(0, orderByIndex);
         }
-        
+
         // Add ORDER BY if provided
         if (!orderByClause.isEmpty()) {
             innerQuery += " ORDER BY " + orderByClause;
         }
-        
+
         // For Oracle pre-12c we use ROWNUM with MINUS
         queryBuilder.append("SELECT * FROM (");
         queryBuilder.append(innerQuery);
@@ -276,29 +276,29 @@ public class DynamicQueryGridService {
         queryBuilder.append("SELECT * FROM (");
         queryBuilder.append(innerQuery);
         queryBuilder.append(") WHERE ROWNUM <= ").append(offset);
-        
+
         return queryBuilder.toString();
     }
-    
+
     /**
      * Alternative pagination method using Oracle 12c+ OFFSET/FETCH syntax.
      * Use this if your Oracle version supports it (12c and above).
      */
-    private String applyOracle12cPaginationAndSorting(String baseQuery, 
-                                                     String orderByClause, 
-                                                     int limit, 
-                                                     int offset) {
+    private String applyOracle12cPaginationAndSorting(String baseQuery,
+                                                      String orderByClause,
+                                                      int limit,
+                                                      int offset) {
         StringBuilder queryBuilder = new StringBuilder();
-        
+
         // Start with the base query
         queryBuilder.append(baseQuery);
-        
+
         // Remove existing ORDER BY if present before adding new one
         int orderByIndex = baseQuery.toLowerCase().lastIndexOf("order by");
         if (orderByIndex != -1) {
             queryBuilder = new StringBuilder(baseQuery.substring(0, orderByIndex));
         }
-        
+
         // Add ORDER BY if provided
         if (!orderByClause.isEmpty()) {
             queryBuilder.append(" ORDER BY ").append(orderByClause);
@@ -306,193 +306,238 @@ public class DynamicQueryGridService {
             // Oracle requires an ORDER BY clause for OFFSET/FETCH
             queryBuilder.append(" ORDER BY 1");
         }
-        
+
         // Add OFFSET/FETCH for pagination (Oracle 12c+ syntax)
         queryBuilder.append(" OFFSET ").append(offset).append(" ROWS");
         queryBuilder.append(" FETCH NEXT ").append(limit).append(" ROWS ONLY");
-        
+
         return queryBuilder.toString();
     }
-    
+
+    /**
+     * Fetches data using the final query with enhanced debugging for type mismatches.
+     */
     /**
  * Fetches data using the final query with enhanced debugging for type mismatches.
  */
 private List<Map<String, Object>> fetchData(String query, List<ColumnMetadata> columns) {
-    System.out.println("Executing query: " + query);
-    
-    // Print expected column types from metadata for reference
-    System.out.println("Expected column types from metadata:");
-    for (ColumnMetadata col : columns) {
-        System.out.println("  Column: " + col.name() + 
-                           ", SQL Type: " + getSqlTypeName(col.sqlType()) + 
-                           ", Java Type: " + col.javaType().getSimpleName());
-    }
-    
-    return jdbcTemplate.query(query, (rs, rowNum) -> {
-        // Only print detailed row info for the first row to avoid flooding logs
-        boolean isFirstRow = (rowNum == 0);
-        Map<String, Object> row = new HashMap<>();
-        
-        if (isFirstRow) {
-            System.out.println("\nProcessing first row (#" + rowNum + "):");
-        }
-        
-        // Get actual metadata from ResultSet for first row
-        if (isFirstRow) {
-            try {
-                ResultSetMetaData rsMetaData = rs.getMetaData();
-                System.out.println("Actual ResultSet metadata for first row:");
-                for (int i = 1; i <= rsMetaData.getColumnCount(); i++) {
-                    System.out.println("  Column: " + rsMetaData.getColumnName(i) + 
-                                       ", SQL Type: " + getSqlTypeName(rsMetaData.getColumnType(i)) + 
-                                       ", Type Name: " + rsMetaData.getColumnTypeName(i));
-                }
-            } catch (SQLException e) {
-                System.err.println("Error fetching ResultSet metadata: " + e.getMessage());
-            }
-        }
-        
-        // Process each column
+        System.out.println("Executing query: " + query);
+
+        // Print expected column types from metadata for reference
+        System.out.println("Expected column types from metadata:");
         for (ColumnMetadata col : columns) {
-            try {
-                if (isFirstRow) {
-                    System.out.println("\nFetching column: " + col.name());
-                    System.out.println("  Expected type: " + getSqlTypeName(col.sqlType()) + 
-                                       " (" + col.javaType().getSimpleName() + ")");
-                    
-                    try {
-                        // Try to identify actual type from the ResultSet
-                        Object rawValue = rs.getObject(col.name());
-                        if (rawValue != null) {
-                            System.out.println("  Actual value class: " + rawValue.getClass().getName());
-                        } else {
-                            System.out.println("  Actual value is NULL");
+            System.out.println("  Column: " + col.name() +
+                    ", SQL Type: " + getSqlTypeName(col.sqlType()) +
+                    ", Java Type: " + col.javaType().getSimpleName());
+        }
+
+    // Create a custom row mapper with comprehensive error handling
+        return jdbcTemplate.query(query, (rs, rowNum) -> {
+            Map<String, Object> row = new HashMap<>();
+
+        // Examine the actual result set metadata for every row (more thorough for debugging)
+                try {
+                    ResultSetMetaData rsMetaData = rs.getMetaData();
+            
+            // Build a map of actual column names to their types
+            Map<String, Integer> actualColumnTypes = new HashMap<>();
+                    for (int i = 1; i <= rsMetaData.getColumnCount(); i++) {
+                actualColumnTypes.put(rsMetaData.getColumnName(i).toUpperCase(), rsMetaData.getColumnType(i));
+            }
+
+            // Process each expected column
+            for (ColumnMetadata col : columns) {
+                String columnName = col.name();
+                String upperColumnName = columnName.toUpperCase();
+
+                        try {
+                    // Special BLOB handling based on actual type detection
+                    if (actualColumnTypes.containsKey(upperColumnName)) {
+                        int actualType = actualColumnTypes.get(upperColumnName);
+                        
+                        // Check for BLOB mismatch
+                        if (actualType == Types.BLOB && col.sqlType() != Types.BLOB) {
+                            System.out.println("Type mismatch for column " + columnName + 
+                                              ": Metadata expected " + getSqlTypeName(col.sqlType()) + 
+                                              " but actual type is BLOB. Handling as BLOB.");
+                            
+                            // Always handle this column as BLOB regardless of metadata
+                            row.put(columnName, getBlobAsBytes(rs, columnName));
+                            continue;
+                            }
+                        
+                        // Check for any other type mismatch
+                        if (actualType != col.sqlType()) {
+                            System.out.println("Potential type mismatch for column " + columnName + 
+                                              ": Expected " + getSqlTypeName(col.sqlType()) + 
+                                              " but actual type is " + getSqlTypeName(actualType) + 
+                                              ". Using actual type for conversion.");
+                            
+                            // Use a temporary ColumnMetadata with the correct type
+                            ColumnMetadata adjustedCol = new ColumnMetadata(
+                                col.name(), col.label(), actualType, col.nullable(), 
+                                mapSqlTypeToJavaType(actualType)
+                            );
+                            
+                            // Use the corrected type for conversion
+                            row.put(columnName, getTypedValue(rs, adjustedCol));
+                            continue;
                         }
-                    } catch (SQLException e) {
-                        System.out.println("  Could not get raw object: " + e.getMessage());
+                    }
+
+                    // Standard processing path when metadata matches
+                    Object value = getTypedValue(rs, col);
+                    row.put(columnName, value);
+
+                } catch (SQLException e) {
+                    String errorMsg = "Error processing column " + columnName + ": " + e.getMessage();
+                    System.err.println(errorMsg);
+
+                    // Add specialized error handling for known Oracle errors
+                    if (e.getMessage().contains("ORA-00932")) {
+                        System.err.println("  Oracle inconsistent datatype error detected!");
+                        System.err.println("  Expected: " + getSqlTypeName(col.sqlType()));
+
+                        // Try to get the column as a BLOB as a fallback
+                        try {
+                            System.err.println("  Attempting to retrieve as BLOB...");
+                            byte[] blobData = getBlobAsBytes(rs, columnName);
+                            System.err.println("  Successfully retrieved as BLOB: " + 
+                                             (blobData != null ? blobData.length + " bytes" : "null"));
+                            row.put(columnName, blobData);
+                        } catch (SQLException blobEx) {
+                            System.err.println("  BLOB fallback failed: " + blobEx.getMessage());
+
+                            // Try as a string as last resort
+                            try {
+                                String strValue = rs.getString(columnName);
+                                System.err.println("  Falling back to string: " + 
+                                                 (strValue != null ? "length=" + strValue.length() : "null"));
+                                row.put(columnName, strValue);
+                            } catch (SQLException strEx) {
+                                System.err.println("  String fallback also failed. Setting to null.");
+                                row.put(columnName, null);
+                                }
+                        }
+                    } else {
+                        // For other errors, set to null
+                        System.err.println("  Setting column to null due to error");
+                        row.put(columnName, null);
                     }
                 }
-                
-                // Try to get typed value
-                Object value = getTypedValue(rs, col);
-                
-                if (isFirstRow && value != null) {
-                    System.out.println("  Converted value class: " + value.getClass().getName());
-                    System.out.println("  Converted value: " + formatValueForLogging(value));
-                }
-                
-                row.put(col.name(), value);
-                
-            } catch (SQLException e) {
-                String message = "Error fetching column " + col.name() + ": " + e.getMessage();
-                System.err.println(message);
-                
-                // Add more detailed error analysis
-                if (e.getMessage().contains("inconsistent datatypes") || 
-                    e.getMessage().contains("ORA-00932")) {
-                    System.err.println("  Type mismatch detected! Oracle expected a different type than provided.");
-                    System.err.println("  Try examining the actual database schema vs. the detected type.");
-                    
-                    // Try with getString as fallback with more diagnostics
-                    try {
-                        System.err.println("  Attempting fallback to getString...");
-                        String strValue = rs.getString(col.name());
-                        System.err.println("  getString succeeded: " + (strValue != null ? "value=" + strValue : "NULL"));
-                        row.put(col.name(), strValue);
-                    } catch (SQLException innerEx) {
-                        System.err.println("  getString fallback also failed: " + innerEx.getMessage());
-                        
-                        // Last resort: try to identify the actual column type
-                        try {
-                            ResultSetMetaData rsmd = rs.getMetaData();
-                            for (int i = 1; i <= rsmd.getColumnCount(); i++) {
-                                if (col.name().equalsIgnoreCase(rsmd.getColumnName(i))) {
-                                    System.err.println("  Actual column type from ResultSet metadata: " + 
-                                                      rsmd.getColumnTypeName(i) + 
-                                                      " (SQL Type ID: " + rsmd.getColumnType(i) + ")");
-                                    break;
-                                }
-                            }
-                        } catch (SQLException metaEx) {
-                            System.err.println("  Could not retrieve column metadata: " + metaEx.getMessage());
-                        }
-                        
+            }
+            
+        } catch (SQLException metaEx) {
+            System.err.println("Error examining result set metadata: " + metaEx.getMessage());
+            
+            // Fallback to basic column processing without metadata correction
+            for (ColumnMetadata col : columns) {
+                try {
+                    Object value = getTypedValue(rs, col);
+                    row.put(col.name(), value);
+                } catch (SQLException e) {
+                    System.err.println("Error fetching column " + col.name() + " in fallback mode: " + e.getMessage());
                         row.put(col.name(), null);
                     }
-                } else {
-                    // For other errors, just set to null
-                    row.put(col.name(), null);
                 }
             }
-        }
-        
-        if (isFirstRow) {
-            System.out.println("\nFinished processing first row");
-        }
-        
-        return row;
-    });
-}
+
+            return row;
+        });
+    }
 
 /**
- * Gets SQL type name from java.sql.Types constant
+ * Enhanced BLOB handling with better error reporting.
  */
-private String getSqlTypeName(int sqlType) {
-    return switch (sqlType) {
-        case Types.CHAR -> "CHAR";
-        case Types.VARCHAR -> "VARCHAR";
-        case Types.LONGVARCHAR -> "LONGVARCHAR";
-        case Types.NCHAR -> "NCHAR";
-        case Types.NVARCHAR -> "NVARCHAR";
-        case Types.LONGNVARCHAR -> "LONGNVARCHAR";
-        case Types.NUMERIC -> "NUMERIC";
-        case Types.DECIMAL -> "DECIMAL";
-        case Types.BIT -> "BIT";
-        case Types.BOOLEAN -> "BOOLEAN";
-        case Types.TINYINT -> "TINYINT";
-        case Types.SMALLINT -> "SMALLINT";
-        case Types.INTEGER -> "INTEGER";
-        case Types.BIGINT -> "BIGINT";
-        case Types.REAL -> "REAL";
-        case Types.FLOAT -> "FLOAT";
-        case Types.DOUBLE -> "DOUBLE";
-        case Types.BINARY -> "BINARY";
-        case Types.VARBINARY -> "VARBINARY";
-        case Types.LONGVARBINARY -> "LONGVARBINARY";
-        case Types.DATE -> "DATE";
-        case Types.TIME -> "TIME";
-        case Types.TIMESTAMP -> "TIMESTAMP";
-        case Types.CLOB -> "CLOB";
-        case Types.BLOB -> "BLOB";
-        case Types.ARRAY -> "ARRAY";
-        case Types.STRUCT -> "STRUCT";
-        case Types.REF -> "REF";
-        case Types.DATALINK -> "DATALINK";
-        case Types.ROWID -> "ROWID";
-        case Types.NCLOB -> "NCLOB";
-        case Types.SQLXML -> "SQLXML";
-        case Types.REF_CURSOR -> "REF_CURSOR";
-        case Types.TIME_WITH_TIMEZONE -> "TIME_WITH_TIMEZONE";
-        case Types.TIMESTAMP_WITH_TIMEZONE -> "TIMESTAMP_WITH_TIMEZONE";
-        default -> "UNKNOWN(" + sqlType + ")";
-    };
-}
-
-/**
- * Formats a value for logging, handling special cases like byte arrays.
- */
-private String formatValueForLogging(Object value) {
-    if (value == null) {
-        return "null";
-    } else if (value instanceof byte[] bytes) {
-        return "[Binary data, length: " + bytes.length + " bytes]";
-    } else if (value.toString().length() > 100) {
-        return value.toString().substring(0, 97) + "...";
-    } else {
-        return value.toString();
+private byte[] getBlobAsBytes(ResultSet rs, String columnName) throws SQLException {
+    try {
+        java.sql.Blob blob = rs.getBlob(columnName);
+        if (blob == null) {
+            return null;
+        }
+        
+        // Get blob length
+        long length = blob.length();
+        System.out.println("Retrieved BLOB for column " + columnName + " with length: " + length + " bytes");
+        
+        // JDBC BLOBs are 1-indexed
+        byte[] blobBytes = blob.getBytes(1, (int)length);
+        
+        // Free BLOB resource when done
+        blob.free();
+        
+        return blobBytes;
+    } catch (SQLException e) {
+        System.err.println("Error processing BLOB for column " + columnName + ": " + e.getMessage());
+        
+        // Additional error info for specific Oracle BLOB errors
+        if (e.getMessage().contains("ORA-01213") || e.getMessage().contains("Invalid LOB locator")) {
+            System.err.println("  This is likely a temporary LOB that has expired or been freed.");
+        }
+        
+        throw e;  // Re-throw to allow other handling approaches
     }
 }
-    
+
+    /**
+     * Gets SQL type name from java.sql.Types constant
+     */
+    private String getSqlTypeName(int sqlType) {
+        return switch (sqlType) {
+            case Types.CHAR -> "CHAR";
+            case Types.VARCHAR -> "VARCHAR";
+            case Types.LONGVARCHAR -> "LONGVARCHAR";
+            case Types.NCHAR -> "NCHAR";
+            case Types.NVARCHAR -> "NVARCHAR";
+            case Types.LONGNVARCHAR -> "LONGNVARCHAR";
+            case Types.NUMERIC -> "NUMERIC";
+            case Types.DECIMAL -> "DECIMAL";
+            case Types.BIT -> "BIT";
+            case Types.BOOLEAN -> "BOOLEAN";
+            case Types.TINYINT -> "TINYINT";
+            case Types.SMALLINT -> "SMALLINT";
+            case Types.INTEGER -> "INTEGER";
+            case Types.BIGINT -> "BIGINT";
+            case Types.REAL -> "REAL";
+            case Types.FLOAT -> "FLOAT";
+            case Types.DOUBLE -> "DOUBLE";
+            case Types.BINARY -> "BINARY";
+            case Types.VARBINARY -> "VARBINARY";
+            case Types.LONGVARBINARY -> "LONGVARBINARY";
+            case Types.DATE -> "DATE";
+            case Types.TIME -> "TIME";
+            case Types.TIMESTAMP -> "TIMESTAMP";
+            case Types.CLOB -> "CLOB";
+            case Types.BLOB -> "BLOB";
+            case Types.ARRAY -> "ARRAY";
+            case Types.STRUCT -> "STRUCT";
+            case Types.REF -> "REF";
+            case Types.DATALINK -> "DATALINK";
+            case Types.ROWID -> "ROWID";
+            case Types.NCLOB -> "NCLOB";
+            case Types.SQLXML -> "SQLXML";
+            case Types.REF_CURSOR -> "REF_CURSOR";
+            case Types.TIME_WITH_TIMEZONE -> "TIME_WITH_TIMEZONE";
+            case Types.TIMESTAMP_WITH_TIMEZONE -> "TIMESTAMP_WITH_TIMEZONE";
+            default -> "UNKNOWN(" + sqlType + ")";
+        };
+    }
+
+    /**
+     * Formats a value for logging, handling special cases like byte arrays.
+     */
+    private String formatValueForLogging(Object value) {
+        if (value == null) {
+            return "null";
+        } else if (value instanceof byte[] bytes) {
+            return "[Binary data, length: " + bytes.length + " bytes]";
+        } else if (value.toString().length() > 100) {
+            return value.toString().substring(0, 97) + "...";
+        } else {
+            return value.toString();
+        }
+    }
+
     /**
      * Gets a properly typed value from the ResultSet based on column metadata.
      * Uses pattern matching (JDK 21 feature).
@@ -501,20 +546,20 @@ private String formatValueForLogging(Object value) {
         if (rs.getObject(col.name()) == null) {
             return null;
         }
-        
+
         // Handle different types with pattern matching
         return switch (col.sqlType()) {
-            case Types.CHAR, Types.VARCHAR, Types.LONGVARCHAR, 
+            case Types.CHAR, Types.VARCHAR, Types.LONGVARCHAR,
                  Types.NCHAR, Types.NVARCHAR, Types.LONGNVARCHAR, Types.CLOB -> rs.getString(col.name());
             case Types.NUMERIC, Types.DECIMAL -> rs.getBigDecimal(col.name());
             case Types.BIT, Types.BOOLEAN -> rs.getBoolean(col.name());
             case Types.TINYINT, Types.SMALLINT, Types.INTEGER -> rs.getInt(col.name());
             case Types.BIGINT -> rs.getLong(col.name());
             case Types.REAL, Types.FLOAT, Types.DOUBLE -> rs.getDouble(col.name());
-            case Types.DATE -> rs.getDate(col.name()) != null ? 
-                               rs.getDate(col.name()).toLocalDate() : null;
-            case Types.TIMESTAMP -> rs.getTimestamp(col.name()) != null ? 
-                                   rs.getTimestamp(col.name()).toLocalDateTime() : null;
+            case Types.DATE -> rs.getDate(col.name()) != null ?
+                    rs.getDate(col.name()).toLocalDate() : null;
+            case Types.TIMESTAMP -> rs.getTimestamp(col.name()) != null ?
+                    rs.getTimestamp(col.name()).toLocalDateTime() : null;
             case Types.BLOB -> getBlobAsBytes(rs, col.name());
             case Types.BINARY, Types.VARBINARY, Types.LONGVARBINARY -> rs.getBytes(col.name());
             default -> {
@@ -528,7 +573,7 @@ private String formatValueForLogging(Object value) {
             }
         };
     }
-    
+
     /**
      * Converts a BLOB to a byte array safely.
      */
@@ -537,24 +582,24 @@ private String formatValueForLogging(Object value) {
         if (blob == null) {
             return null;
         }
-        
+
         try {
             // Get blob length
             long length = blob.length();
-            
+
             // JDBC BLOBs are 1-indexed
             byte[] blobBytes = blob.getBytes(1, (int)length);
-            
+
             // Free BLOB resource when done
             blob.free();
-            
+
             return blobBytes;
         } catch (Exception e) {
             System.err.println("Error reading BLOB data: " + e.getMessage());
             return null;
         }
     }
-    
+
     /**
      * Counts total results for pagination.
      */
@@ -564,7 +609,7 @@ private String formatValueForLogging(Object value) {
         Integer count = jdbcTemplate.queryForObject(countQuery, Integer.class);
         return count != null ? count : 0;
     }
-    
+
     /**
      * Builds a count query from the base query.
      */
@@ -573,35 +618,35 @@ private String formatValueForLogging(Object value) {
         String cleanQuery = removeOrderByAndRownum(baseQuery);
         return "SELECT COUNT(*) FROM (" + cleanQuery + ")";
     }
-    
+
     /**
      * Removes ORDER BY and ROWNUM clauses from a query.
      */
     private String removeOrderByAndRownum(String query) {
         String lowerQuery = query.toLowerCase();
-        
+
         // Remove ORDER BY clause
         int orderByIndex = lowerQuery.lastIndexOf("order by");
         if (orderByIndex != -1) {
             return query.substring(0, orderByIndex);
         }
-        
+
         // If there's a WHERE ROWNUM condition, try to remove it
         int whereRownumIndex = lowerQuery.indexOf("where rownum");
         if (whereRownumIndex != -1) {
             return query.substring(0, whereRownumIndex);
         }
-        
+
         return query;
     }
-    
+
     /**
      * Provides direct access to retrieve a BLOB as byte array for external use.
      * Useful for downloading BLOB data.
      */
     public byte[] getBlobData(String tableName, String blobColumn, String keyColumn, Object keyValue) {
         String query = "SELECT " + blobColumn + " FROM " + tableName + " WHERE " + keyColumn + " = ?";
-        
+
         try {
             return jdbcTemplate.queryForObject(query, (rs, rowNum) -> {
                 try {
