@@ -33,6 +33,9 @@
             --input-border: #ced4da;
             --input-disabled: #e9ecef;
             --toast-bg: #fff;
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --info-color: #17a2b8;
         }
 
         .dark-mode {
@@ -63,6 +66,9 @@
             --input-border: #4b6584;
             --input-disabled: #34495e;
             --toast-bg: #2c3e50;
+            --success-color: #2ecc71;
+            --warning-color: #f39c12;
+            --info-color: #3498db;
         }
 
         * {
@@ -124,6 +130,12 @@
 
         button:hover {
             background-color: var(--primary-hover);
+        }
+
+        button:disabled {
+            background-color: var(--input-disabled);
+            cursor: not-allowed;
+            opacity: 0.7;
         }
 
         .btn-danger {
@@ -412,6 +424,19 @@
             display: block;
         }
 
+        .alert {
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+        }
+
+        .alert-warning {
+            background-color: var(--warning-color);
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+
         .checkbox-container {
             display: flex;
             align-items: center;
@@ -479,7 +504,7 @@
             z-index: 50;
             transition: background-color 0.3s ease, color 0.3s ease;
             width: 280px;
-            overflow: visible; /* Changed from hidden to visible */
+            overflow: visible;
         }
 
         .relationship-header {
@@ -492,7 +517,7 @@
             transition: background-color 0.2s ease;
             font-weight: bold;
         }
-
+        
         .relationship-header:hover {
             background-color: var(--hover-color);
         }
@@ -508,7 +533,7 @@
         }
 
         .relationship-content.expanded {
-            max-height: 500px; /* Increased from 300px to 500px */
+            max-height: 500px;
             border-top: 1px solid var(--border-color);
         }
 
@@ -569,7 +594,7 @@
             color: var(--text-secondary);
             transition: color 0.3s ease;
             line-height: 1.4;
-            word-wrap: break-word; /* Added to ensure text wraps properly */
+            word-wrap: break-word;
         }
 
         .relationship-option.active .relationship-description {
@@ -615,7 +640,7 @@
             border: 1px solid var(--border-color);
             border-radius: 4px;
             margin-bottom: 15px;
-            max-height: 200px;
+            max-height: 300px;
             overflow-y: auto;
             background-color: var(--input-bg);
         }
@@ -696,6 +721,64 @@
             border-radius: 50%;
         }
 
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 4px;
+            background-color: var(--toast-bg);
+            color: var(--text-color);
+            box-shadow: 0 2px 10px var(--shadow-dark);
+            z-index: 2000;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            max-width: 300px;
+        }
+
+        .toast.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .toast-success {
+            border-left: 4px solid var(--success-color);
+        }
+
+        .toast-error {
+            border-left: 4px solid var(--accent-color);
+        }
+
+        .toast-info {
+            border-left: 4px solid var(--info-color);
+        }
+
+        .table-status {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+        }
+
+        .table-status.error {
+            color: var(--accent-color);
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(0, 0, 0, 0.1);
+            border-left-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spinner 1s linear infinite;
+            margin-right: 5px;
+        }
+
+        @keyframes spinner {
+            to {transform: rotate(360deg);}
+        }
+
         /* Enhanced scrollbar for dark mode compatibility */
         ::-webkit-scrollbar {
             width: 10px;
@@ -727,23 +810,23 @@
                 gap: 10px;
                 padding: 15px;
             }
-
+            
             .toolbar-actions {
                 flex-wrap: wrap;
                 justify-content: center;
             }
-
+            
             .toolbar-title {
                 flex-direction: column;
                 text-align: center;
             }
-
+            
             .relationship-options, .mode-toggle {
                 position: static;
                 margin: 10px auto;
                 width: 100%;
             }
-
+            
             .zoom-controls {
                 bottom: 10px;
                 right: 10px;
@@ -752,862 +835,1137 @@
     </style>
 </head>
 <body>
-<div class="toolbar">
-    <div class="toolbar-title">
-        <h1>Database Schema Designer</h1>
-    </div>
-    <div class="toolbar-actions">
-        <button id="btn-add-table">Add Table</button>
-        <button id="btn-import-table"><span class="icon-database"></span> Import Table</button>
-        <button id="btn-export">Export</button>
-        <button id="btn-clear" class="btn-danger">Clear All</button>
-    </div>
-</div>
-
-<div class="relationship-options">
-    <div class="relationship-header" id="relationship-header">
-        <div>Relationship Types</div>
-        <div class="toggle-icon">▼</div>
-    </div>
-    <div class="relationship-content expanded" id="relationship-content">
-        <div class="relationship-option" data-type="1:1">
-            <div class="relationship-type">One-to-One</div>
-            <div class="relationship-diagram">1:1</div>
-            <div class="relationship-description">Each record in Table A is linked to one record in Table B</div>
+    <div class="toolbar">
+        <div class="toolbar-title">
+            <h1>Database Schema Designer</h1>
         </div>
-        <div class="relationship-option active" data-type="1:N">
-            <div class="relationship-type">One-to-Many</div>
-            <div class="relationship-diagram">1:N</div>
-            <div class="relationship-description">Each record in Table A is linked to multiple records in Table B</div>
-        </div>
-        <div class="relationship-option" data-type="N:M">
-            <div class="relationship-type">Many-to-Many</div>
-            <div class="relationship-diagram">N:M</div>
-            <div class="relationship-description">Multiple records in Table A are linked to multiple records in Table B</div>
+        <div class="toolbar-actions">
+            <button id="btn-add-table">Add Table</button>
+            <button id="btn-import-table"><span class="icon-database"></span> Import Table</button>
+            <button id="btn-export">Export</button>
+            <button id="btn-clear" class="btn-danger">Clear All</button>
         </div>
     </div>
-</div>
 
-<div class="linking-hint">Select a column to start linking</div>
-
-<div class="mode-toggle">
-    <span class="mode-icon">☀️</span>
-    <span>Dark Mode</span>
-</div>
-
-<div class="canvas-container">
-    <div class="canvas" id="canvas"></div>
-</div>
-
-<div class="zoom-controls">
-    <div class="zoom-btn" id="zoom-out">-</div>
-    <div class="zoom-label" id="zoom-level">100%</div>
-    <div class="zoom-btn" id="zoom-in">+</div>
-</div>
-
-<!-- Add Table Modal -->
-<div class="modal-overlay" id="add-table-modal">
-    <div class="modal">
-        <div class="modal-header">
-            <h3 class="modal-title">Add New Table</h3>
-            <button class="modal-close">&times;</button>
+    <div class="relationship-options">
+        <div class="relationship-header" id="relationship-header">
+            <div>Relationship Types</div>
+            <div class="toggle-icon">▼</div>
         </div>
-        <div class="modal-body">
-            <div class="form-group">
-                <label class="form-label" for="table-name">Table Name</label>
-                <input type="text" class="form-control" id="table-name" placeholder="Enter table name">
+        <div class="relationship-content expanded" id="relationship-content">
+            <div class="relationship-option" data-type="1:1">
+                <div class="relationship-type">One-to-One</div>
+                <div class="relationship-diagram">1:1</div>
+                <div class="relationship-description">Each record in Table A is linked to one record in Table B</div>
             </div>
-            <div class="form-group">
-                <label class="form-label">Columns</label>
-                <div class="column-list" id="column-list"></div>
-                <button id="btn-add-column" class="add-column-btn">Add Column</button>
+            <div class="relationship-option active" data-type="1:N">
+                <div class="relationship-type">One-to-Many</div>
+                <div class="relationship-diagram">1:N</div>
+                <div class="relationship-description">Each record in Table A is linked to multiple records in Table B</div>
             </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn-secondary modal-close-btn">Cancel</button>
-            <button id="btn-create-table">Create Table</button>
+            <div class="relationship-option" data-type="N:M">
+                <div class="relationship-type">Many-to-Many</div>
+                <div class="relationship-diagram">N:M</div>
+                <div class="relationship-description">Multiple records in Table A are linked to multiple records in Table B</div>
+            </div>
         </div>
     </div>
-</div>
 
-<!-- Import Table Modal -->
-<div class="modal-overlay" id="import-table-modal">
-    <div class="modal">
-        <div class="modal-header">
-            <h3 class="modal-title">Import Table from Database</h3>
-            <button class="modal-close">&times;</button>
-        </div>
-        <div class="modal-body">
-            <div class="form-group">
-                <label class="form-label" for="db-table-name">Table Name</label>
-                <input type="text" class="form-control" id="db-table-name" placeholder="Enter database table name">
-                <span class="form-text">Enter the exact name of an existing database table</span>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn-secondary modal-close-btn">Cancel</button>
-            <button id="btn-fetch-table">Fetch Table Schema</button>
-        </div>
+    <div class="linking-hint">Select a column to start linking</div>
+
+    <div class="mode-toggle">
+        <span class="mode-icon">☀️</span>
+        <span>Dark Mode</span>
     </div>
-</div>
 
-<!-- Export Schema Modal -->
-<div class="modal-overlay" id="export-modal">
-    <div class="modal">
-        <div class="modal-header">
-            <h3 class="modal-title">Export Schema</h3>
-            <button class="modal-close">&times;</button>
-        </div>
-        <div class="modal-body">
-            <div class="form-group">
-                <label class="form-label">Format</label>
-                <select class="form-control" id="export-format">
-                    <option value="json">JSON</option>
-                    <option value="sql">SQL</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Output</label>
-                <textarea class="export-code" id="export-output" readonly></textarea>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button id="btn-copy" class="btn-secondary">Copy to Clipboard</button>
-            <button class="modal-close-btn">Close</button>
-        </div>
+    <div class="canvas-container">
+        <div class="canvas" id="canvas"></div>
     </div>
-</div>
 
-<!-- Add Column Modal -->
-<div class="modal-overlay" id="add-column-modal">
-    <div class="modal">
-        <div class="modal-header">
-            <h3 class="modal-title">Add New Column</h3>
-            <button class="modal-close">&times;</button>
-        </div>
-        <div class="modal-body">
-            <div class="form-group">
-                <label class="form-label" for="column-name">Column Name</label>
-                <input type="text" class="form-control" id="column-name" placeholder="Enter column name">
+    <div class="zoom-controls">
+        <div class="zoom-btn" id="zoom-out">-</div>
+        <div class="zoom-label" id="zoom-level">100%</div>
+        <div class="zoom-btn" id="zoom-in">+</div>
+    </div>
+
+    <!-- Toast Messages -->
+    <div class="toast" id="toast-message">
+        Message here
+    </div>
+
+    <!-- Add Table Modal -->
+    <div class="modal-overlay" id="add-table-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Add New Table</h3>
+                <button class="modal-close">&times;</button>
             </div>
-            <div class="form-group">
-                <label class="form-label" for="column-type">Data Type</label>
-                <select class="form-control" id="column-type">
-                    <option value="VARCHAR(255)">VARCHAR(255)</option>
-                    <option value="INT">INT</option>
-                    <option value="BOOLEAN">BOOLEAN</option>
-                    <option value="DATE">DATE</option>
-                    <option value="DATETIME">DATETIME</option>
-                    <option value="TEXT">TEXT</option>
-                    <option value="DECIMAL(10,2)">DECIMAL(10,2)</option>
-                    <option value="BIGINT">BIGINT</option>
-                    <option value="FLOAT">FLOAT</option>
-                    <option value="DOUBLE">DOUBLE</option>
-                    <option value="CHAR(1)">CHAR(1)</option>
-                    <option value="BLOB">BLOB</option>
-                    <option value="JSON">JSON</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <div class="checkbox-container">
-                    <input type="checkbox" id="column-primary-key">
-                    <label for="column-primary-key">Primary Key</label>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="table-name">Table Name</label>
+                    <input type="text" class="form-control" id="table-name" placeholder="Enter table name">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Columns</label>
+                    <div id="primary-key-warning" class="alert alert-warning" style="display: none;">
+                        At least one column must be marked as a primary key
+                    </div>
+                    <div class="column-list" id="column-list"></div>
+                    <button id="btn-add-column" class="add-column-btn">Add Column</button>
                 </div>
             </div>
-            <div class="form-group">
-                <div class="checkbox-container">
-                    <input type="checkbox" id="column-nullable" checked>
-                    <label for="column-nullable">Nullable</label>
-                </div>
+            <div class="modal-footer">
+                <button class="btn-secondary modal-close-btn">Cancel</button>
+                <button id="btn-create-table">Create Table</button>
             </div>
         </div>
-        <div class="modal-footer">
-            <button class="btn-secondary modal-close-btn">Cancel</button>
-            <button id="btn-add-column-submit">Add Column</button>
+    </div>
+
+    <!-- Import Table Modal -->
+    <div class="modal-overlay" id="import-table-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Import Table from Database</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="db-table-name">Table Name</label>
+                    <input type="text" class="form-control" id="db-table-name" placeholder="Enter database table name">
+                    <span class="form-text">Enter the exact name of an existing database table</span>
+                </div>
+                <div id="import-status" class="table-status" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary modal-close-btn">Cancel</button>
+                <button id="btn-fetch-table">Fetch Table Schema</button>
+            </div>
         </div>
     </div>
-</div>
 
-<script>
-    // Global variables
-    let zoomLevel = 100;
-    let tables = {};
-    let relationships = [];
-    let isDragging = false;
-    let isLinking = false;
-    let sourceColumn = null;
-    let draggedElement = null;
-    let dragOffsetX = 0;
-    let dragOffsetY = 0;
-    let selectedRelationshipType = "1:N";
-    let canvas = document.getElementById('canvas');
-    let isDarkMode = false;
-    let columnCounter = 0;
-    let currentTableId = null;
-    let isRelationshipPanelCollapsed = false;
+    <!-- Export Schema Modal -->
+    <div class="modal-overlay" id="export-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Export Schema</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Format</label>
+                    <select class="form-control" id="export-format">
+                        <option value="json">JSON</option>
+                        <option value="sql">SQL</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Output</label>
+                    <textarea class="export-code" id="export-output" readonly></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-copy" class="btn-secondary">Copy to Clipboard</button>
+                <button id="btn-save-export">Save to Server</button>
+                <button class="modal-close-btn">Close</button>
+            </div>
+        </div>
+    </div>
 
-    // Initialize the designer
-    function init() {
-        bindEvents();
-    }
+    <!-- Add Column Modal -->
+    <div class="modal-overlay" id="add-column-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Add New Column</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="column-name">Column Name</label>
+                    <input type="text" class="form-control" id="column-name" placeholder="Enter column name">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="column-type">Data Type</label>
+                    <select class="form-control" id="column-type">
+                        <option value="VARCHAR(255)">VARCHAR(255)</option>
+                        <option value="INT">INT</option>
+                        <option value="BOOLEAN">BOOLEAN</option>
+                        <option value="DATE">DATE</option>
+                        <option value="DATETIME">DATETIME</option>
+                        <option value="TEXT">TEXT</option>
+                        <option value="DECIMAL(10,2)">DECIMAL(10,2)</option>
+                        <option value="BIGINT">BIGINT</option>
+                        <option value="FLOAT">FLOAT</option>
+                        <option value="DOUBLE">DOUBLE</option>
+                        <option value="CHAR(1)">CHAR(1)</option>
+                        <option value="BLOB">BLOB</option>
+                        <option value="JSON">JSON</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="column-primary-key">
+                        <label for="column-primary-key">Primary Key</label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="column-nullable" checked>
+                        <label for="column-nullable">Nullable</label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary modal-close-btn">Cancel</button>
+                <button id="btn-add-column-submit">Add Column</button>
+            </div>
+        </div>
+    </div>
 
-    // Bind event listeners
-    function bindEvents() {
-        document.getElementById('btn-add-table').addEventListener('click', function() {
-            openModal('add-table-modal');
-            document.getElementById('table-name').value = '';
-            document.getElementById('column-list').innerHTML = '';
-        });
+    <script>
+        // Global variables
+        let zoomLevel = 100;
+        let tables = {};
+        let relationships = [];
+        let isDragging = false;
+        let isLinking = false;
+        let sourceColumn = null;
+        let draggedElement = null;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+        let selectedRelationshipType = "1:N";
+        let canvas = document.getElementById('canvas');
+        let isDarkMode = false;
+        let columnCounter = 0;
+        let currentTableId = null;
+        let isRelationshipPanelCollapsed = false;
+        let importedTableData = null;
+        let isTableImportMode = false;
 
-        document.getElementById('btn-import-table').addEventListener('click', function() {
-            openModal('import-table-modal');
-            document.getElementById('db-table-name').value = '';
-        });
+        // Initialize the designer
+        function init() {
+            bindEvents();
+            setupMessageListeners();
+        }
 
-        document.getElementById('btn-fetch-table').addEventListener('click', function() {
-            const tableName = document.getElementById('db-table-name').value.trim();
+        // Listen for messages from Vaadin server
+        function setupMessageListeners() {
+            window.addEventListener('message', function(event) {
+                if (event.data && event.data.type === 'describe-table-response') {
+                    handleTableSchemaResponse(event.data.tableData);
+                } else if (event.data && event.data.type === 'export-schema-response') {
+                    if (event.data.success) {
+                        showToast('Schema exported successfully', 'success');
+                    } else {
+                        showToast('Error exporting schema: ' + (event.data.message || 'Unknown error'), 'error');
+                    }
+                }
+            });
+        }
 
-            if (tableName === '') {
-                alert('Please enter a table name');
+        // Handle table schema data from server
+        function handleTableSchemaResponse(tableData) {
+            if (!tableData || !tableData.name || !tableData.columns || tableData.columns.length === 0) {
+                showToast('Table not found or contains no columns', 'error');
                 return;
             }
+            
+            // Store the imported data for later use
+            importedTableData = tableData;
+            isTableImportMode = true;
+            
+            // Open the add table modal with prepopulated data
+            openModal('add-table-modal');
+            
+            // Set table name
+            document.getElementById('table-name').value = tableData.name;
+            
+            // Clear existing columns
+            document.getElementById('column-list').innerHTML = '';
+            
+            // Check if we have at least one primary key
+            let hasPrimaryKey = tableData.columns.some(column => column.primaryKey);
+            
+            // Show/hide primary key warning
+            document.getElementById('primary-key-warning').style.display = hasPrimaryKey ? 'none' : 'block';
+            
+            // Add columns from table data
+            tableData.columns.forEach(column => {
+                addColumnToList(column.name, column.type, column.primaryKey, column.nullable);
+            });
+            
+            // Enable/disable create button based on primary key
+            document.getElementById('btn-create-table').disabled = !hasPrimaryKey;
+            
+            // Show toast notification
+            showToast(`Table schema loaded: ${tableData.name}`, 'info');
+        }
 
-            // Send message to parent frame to request table description
-            window.parent.postMessage({
-                type: 'describe-table-request',
-                tableName: tableName
-            }, '*');
+        // Add a column to the column list in add table modal
+        function addColumnToList(name, type, primaryKey, nullable) {
+            const columnItem = document.createElement('div');
+            columnItem.className = 'column-item';
+            columnItem.dataset.name = name;
+            columnItem.dataset.type = type;
+            columnItem.dataset.primaryKey = primaryKey;
+            columnItem.dataset.nullable = nullable;
+            
+            columnItem.innerHTML = `
+                <div class="column-name">
+                    ${primaryKey ? '<span class="primary-key">PK</span>' : ''}
+                    <span>${name}</span>
+                    <span class="column-type">${type}</span>
+                </div>
+                <div class="column-actions">
+                    <span class="action-icon edit-icon" onclick="editColumnItem(this)">✎</span>
+                    <span class="action-icon delete-icon" onclick="removeColumnItem(this)">✕</span>
+                </div>
+            `;
+            
+            document.getElementById('column-list').appendChild(columnItem);
+            
+            // Check if we have any primary keys after adding/editing this column
+            checkPrimaryKeyStatus();
+        }
 
-            closeModal('import-table-modal');
-        });
-
-        document.getElementById('btn-export').addEventListener('click', function() {
-            openModal('export-modal');
-            exportSchema();
-        });
-
-        document.getElementById('btn-clear').addEventListener('click', function() {
-            if (confirm('Are you sure you want to clear all tables? This action cannot be undone.')) {
-                tables = {};
-                relationships = [];
-                canvas.innerHTML = '';
+        // Edit a column in the list
+        function editColumnItem(element) {
+            const columnItem = element.closest('.column-item');
+            const name = columnItem.dataset.name;
+            const type = columnItem.dataset.type;
+            const primaryKey = columnItem.dataset.primaryKey === 'true';
+            const nullable = columnItem.dataset.nullable === 'true';
+            
+            // Open the add column modal with the column data
+            openModal('add-column-modal');
+            document.getElementById('column-name').value = name;
+            document.getElementById('column-type').value = type;
+            document.getElementById('column-primary-key').checked = primaryKey;
+            document.getElementById('column-nullable').checked = nullable;
+            
+            // Store the column item for updating later
+            sessionStorage.setItem('editing-column', columnItem.dataset.name);
+            
+            // Change the add column button text
+            document.getElementById('btn-add-column-submit').textContent = 'Update Column';
+            
+            // Change the submit button action
+            const submitBtn = document.getElementById('btn-add-column-submit');
+            submitBtn.onclick = function() {
+                updateColumnItem();
+            };
+        }
+        
+        // Update a column in the list
+        function updateColumnItem() {
+            const oldName = sessionStorage.getItem('editing-column');
+            const name = document.getElementById('column-name').value.trim();
+            const type = document.getElementById('column-type').value;
+            const primaryKey = document.getElementById('column-primary-key').checked;
+            const nullable = document.getElementById('column-nullable').checked;
+            
+            if (name === '') {
+                showToast('Please enter a column name', 'error');
+                return;
             }
-        });
+            
+            // Find the column item
+            const columnItems = document.querySelectorAll('.column-item');
+            for (let i = 0; i < columnItems.length; i++) {
+                if (columnItems[i].dataset.name === oldName) {
+                    // Update the column data
+                    columnItems[i].dataset.name = name;
+                    columnItems[i].dataset.type = type;
+                    columnItems[i].dataset.primaryKey = primaryKey;
+                    columnItems[i].dataset.nullable = nullable;
+                    
+                    // Update the column item HTML
+                    columnItems[i].innerHTML = `
+                        <div class="column-name">
+                            ${primaryKey ? '<span class="primary-key">PK</span>' : ''}
+                            <span>${name}</span>
+                            <span class="column-type">${type}</span>
+                        </div>
+                        <div class="column-actions">
+                            <span class="action-icon edit-icon" onclick="editColumnItem(this)">✎</span>
+                            <span class="action-icon delete-icon" onclick="removeColumnItem(this)">✕</span>
+                        </div>
+                    `;
+                    
+                    break;
+                }
+            }
+            
+            // Reset the editing column
+            sessionStorage.removeItem('editing-column');
+            
+            // Reset the add column button text
+            document.getElementById('btn-add-column-submit').textContent = 'Add Column';
+            
+            // Reset the submit button action
+            const submitBtn = document.getElementById('btn-add-column-submit');
+            submitBtn.onclick = function() {
+                addColumnFromModal();
+            };
+            
+            // Check primary key status
+            checkPrimaryKeyStatus();
+            
+            // Close the modal
+            closeModal('add-column-modal');
+        }
 
-        document.getElementById('btn-add-column').addEventListener('click', function() {
+        // Check if we have at least one primary key column
+        function checkPrimaryKeyStatus() {
+            const columnItems = document.querySelectorAll('.column-item');
+            let hasPrimaryKey = false;
+            
+            for (let i = 0; i < columnItems.length; i++) {
+                if (columnItems[i].dataset.primaryKey === 'true') {
+                    hasPrimaryKey = true;
+                    break;
+                }
+            }
+            
+            // Show/hide the warning
+            document.getElementById('primary-key-warning').style.display = hasPrimaryKey ? 'none' : 'block';
+            
+            // Enable/disable the create table button
+            document.getElementById('btn-create-table').disabled = !hasPrimaryKey;
+            
+            return hasPrimaryKey;
+        }
+
+        // Show toast notification
+        function showToast(message, type) {
+            const toast = document.getElementById('toast-message');
+            
+            // Set message
+            toast.textContent = message;
+            
+            // Set toast type
+            toast.className = 'toast';
+            if (type === 'success') {
+                toast.classList.add('toast-success');
+            } else if (type === 'error') {
+                toast.classList.add('toast-error');
+            } else if (type === 'info') {
+                toast.classList.add('toast-info');
+            }
+            
+            // Show toast
+            toast.classList.add('visible');
+            
+            // Hide toast after 3 seconds
+            setTimeout(() => {
+                toast.classList.remove('visible');
+            }, 3000);
+        }
+
+        // Bind event listeners
+        function bindEvents() {
+            document.getElementById('btn-add-table').addEventListener('click', function() {
+                isTableImportMode = false;
+                openModal('add-table-modal');
+                document.getElementById('table-name').value = '';
+                document.getElementById('column-list').innerHTML = '';
+                document.getElementById('primary-key-warning').style.display = 'block';
+                document.getElementById('btn-create-table').disabled = true;
+            });
+
+            document.getElementById('btn-import-table').addEventListener('click', function() {
+                openModal('import-table-modal');
+                document.getElementById('db-table-name').value = '';
+                document.getElementById('import-status').style.display = 'none';
+            });
+
+            document.getElementById('btn-fetch-table').addEventListener('click', function() {
+                const tableName = document.getElementById('db-table-name').value.trim();
+                
+                if (tableName === '') {
+                    showToast('Please enter a table name', 'error');
+                    return;
+                }
+                
+                // Show loading status
+                const statusEl = document.getElementById('import-status');
+                statusEl.innerHTML = '<span class="loading-spinner"></span> Fetching table schema...';
+                statusEl.style.display = 'block';
+                statusEl.className = 'table-status';
+                
+                // Send message to parent frame to request table description
+                window.parent.postMessage({
+                    type: 'describe-table-request',
+                    tableName: tableName
+                }, '*');
+                
+                closeModal('import-table-modal');
+            });
+
+            document.getElementById('btn-export').addEventListener('click', function() {
+                openModal('export-modal');
+                exportSchema();
+            });
+
+            document.getElementById('btn-save-export').addEventListener('click', function() {
+                saveExportToServer();
+            });
+
+            document.getElementById('btn-clear').addEventListener('click', function() {
+                if (confirm('Are you sure you want to clear all tables? This action cannot be undone.')) {
+                    tables = {};
+                    relationships = [];
+                    canvas.innerHTML = '';
+                    showToast('All tables cleared', 'info');
+                }
+            });
+
+            document.getElementById('btn-add-column').addEventListener('click', function() {
+                openModal('add-column-modal');
+                document.getElementById('column-name').value = '';
+                document.getElementById('column-type').value = 'VARCHAR(255)';
+                document.getElementById('column-primary-key').checked = false;
+                document.getElementById('column-nullable').checked = true;
+                
+                // Reset to normal add mode
+                sessionStorage.removeItem('editing-column');
+                document.getElementById('btn-add-column-submit').textContent = 'Add Column';
+                
+                // Reset the submit button action
+                const submitBtn = document.getElementById('btn-add-column-submit');
+                submitBtn.onclick = function() {
+                    addColumnFromModal();
+                };
+            });
+
+            document.getElementById('btn-add-column-submit').addEventListener('click', function() {
+                if (sessionStorage.getItem('editing-column')) {
+                    updateColumnItem();
+                } else {
+                    addColumnFromModal();
+                }
+            });
+
+            document.getElementById('btn-create-table').addEventListener('click', function() {
+                createTableFromModal();
+            });
+
+            document.getElementById('btn-copy').addEventListener('click', function() {
+                const output = document.getElementById('export-output');
+                output.select();
+                document.execCommand('copy');
+                showToast('Copied to clipboard!', 'success');
+            });
+
+            document.querySelectorAll('.modal-close, .modal-close-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    const modal = this.closest('.modal-overlay');
+                    closeModal(modal.id);
+                });
+            });
+
+            // Add click handler for relationship panel toggle
+            document.getElementById('relationship-header').addEventListener('click', function() {
+                toggleRelationshipPanel();
+            });
+
+            document.querySelectorAll('.relationship-option').forEach(function(option) {
+                option.addEventListener('click', function(e) {
+                    e.stopPropagation(); // Prevent triggering the collapse/expand
+                    document.querySelectorAll('.relationship-option').forEach(o => o.classList.remove('active'));
+                    this.classList.add('active');
+                    selectedRelationshipType = this.dataset.type;
+                });
+            });
+
+            document.querySelector('.mode-toggle').addEventListener('click', function() {
+                toggleDarkMode();
+            });
+
+            document.getElementById('zoom-in').addEventListener('click', function() {
+                zoomIn();
+            });
+
+            document.getElementById('zoom-out').addEventListener('click', function() {
+                zoomOut();
+            });
+
+            canvas.addEventListener('mousedown', handleMouseDown);
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+
+            // Monitor export format changes
+            document.getElementById('export-format').addEventListener('change', function() {
+                exportSchema();
+            });
+        }
+
+        // Save export to server
+        function saveExportToServer() {
+            const format = document.getElementById('export-format').value;
+            const schemaData = document.getElementById('export-output').value;
+            
+            if (!schemaData) {
+                showToast('No schema data to export', 'error');
+                return;
+            }
+            
+            // Send schema data to server
+            window.parent.postMessage({
+                type: 'export-schema-request',
+                schemaData: schemaData,
+                format: format
+            }, '*');
+        }
+
+        // Toggle relationship panel collapse/expand
+        function toggleRelationshipPanel() {
+            const content = document.getElementById('relationship-content');
+            const toggleIcon = document.querySelector('.toggle-icon');
+            
+            if (isRelationshipPanelCollapsed) {
+                content.classList.remove('collapsed');
+                content.classList.add('expanded');
+                toggleIcon.classList.remove('collapsed');
+                toggleIcon.textContent = '▼';
+            } else {
+                content.classList.remove('expanded');
+                content.classList.add('collapsed');
+                toggleIcon.classList.add('collapsed');
+                toggleIcon.textContent = '▲';
+            }
+            
+            isRelationshipPanelCollapsed = !isRelationshipPanelCollapsed;
+        }
+
+        // Create a new table from modal
+        function createTableFromModal() {
+            const tableName = document.getElementById('table-name').value.trim();
+            const columnItems = document.querySelectorAll('.column-item');
+            
+            if (tableName === '') {
+                showToast('Please enter a table name', 'error');
+                return;
+            }
+            
+            if (columnItems.length === 0) {
+                showToast('Please add at least one column', 'error');
+                return;
+            }
+            
+            if (!checkPrimaryKeyStatus()) {
+                showToast('Table must have at least one primary key column', 'error');
+                return;
+            }
+            
+            let columns = [];
+            columnItems.forEach(function(item) {
+                columns.push({
+                    name: item.dataset.name,
+                    type: item.dataset.type,
+                    primaryKey: item.dataset.primaryKey === 'true',
+                    nullable: item.dataset.nullable === 'true'
+                });
+            });
+            
+            createTable(null, tableName, columns);
+            closeModal('add-table-modal');
+            
+            // Reset import mode
+            isTableImportMode = false;
+            importedTableData = null;
+            
+            showToast(`Table "${tableName}" created successfully`, 'success');
+        }
+
+        // Add a column from modal to the column list
+        function addColumnFromModal() {
+            const name = document.getElementById('column-name').value.trim();
+            const type = document.getElementById('column-type').value;
+            const primaryKey = document.getElementById('column-primary-key').checked;
+            const nullable = document.getElementById('column-nullable').checked;
+            
+            if (name === '') {
+                showToast('Please enter a column name', 'error');
+                return;
+            }
+            
+            // Check for duplicate column names
+            const columnItems = document.querySelectorAll('.column-item');
+            for (let i = 0; i < columnItems.length; i++) {
+                if (columnItems[i].dataset.name === name) {
+                    showToast('Column name already exists', 'error');
+                    return;
+                }
+            }
+            
+            addColumnToList(name, type, primaryKey, nullable);
+            closeModal('add-column-modal');
+        }
+
+        // Remove a column item from the list
+        function removeColumnItem(element) {
+            element.closest('.column-item').remove();
+            checkPrimaryKeyStatus();
+        }
+
+        // Create a new table on the canvas
+        function createTable(id, name, columns) {
+            const tableId = id || 'table_' + Date.now();
+            const table = document.createElement('div');
+            table.className = 'table';
+            table.id = tableId;
+            table.style.left = `${Math.random() * 500 + 50}px`;
+            table.style.top = `${Math.random() * 300 + 50}px`;
+            
+            let columnsHTML = '';
+            columns.forEach(function(column) {
+                columnsHTML += `
+                    <div class="column" data-name="${column.name}" data-type="${column.type}" data-primary-key="${column.primaryKey}" data-nullable="${column.nullable}" data-foreign-key="${column.foreignKey || false}">
+                        <div class="column-name">
+                            ${column.primaryKey ? '<span class="primary-key">PK</span>' : ''}
+                            ${column.foreignKey ? '<span class="foreign-key">FK</span>' : ''}
+                            <span>${column.name}</span>
+                            <span class="column-type">${column.type}</span>
+                        </div>
+                        <div class="column-actions">
+                            <span class="action-icon link-icon" onclick="startLinking(event, '${tableId}', '${column.name}')">🔗</span>
+                            <span class="action-icon delete-icon" onclick="deleteColumn(event, '${tableId}', '${column.name}')">✕</span>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            table.innerHTML = `
+                <div class="table-header">
+                    <span>${name}</span>
+                    <div class="column-actions">
+                        <span class="action-icon" onclick="addColumnToTable('${tableId}')">+</span>
+                        <span class="action-icon delete-icon" onclick="deleteTable('${tableId}')">✕</span>
+                    </div>
+                </div>
+                <div class="table-body">
+                    ${columnsHTML}
+                </div>
+            `;
+            
+            canvas.appendChild(table);
+            
+            tables[tableId] = {
+                id: tableId,
+                name: name,
+                columns: columns
+            };
+        }
+
+        // Start linking two columns
+        function startLinking(event, tableId, columnName) {
+            event.stopPropagation();
+            
+            if (isLinking && sourceColumn) {
+                // Complete the link
+                const targetTable = tables[tableId];
+                const targetColumn = targetTable.columns.find(c => c.name === columnName);
+                
+                createRelationship(sourceColumn.tableId, sourceColumn.columnName, tableId, columnName, selectedRelationshipType);
+                
+                // Reset linking state
+                isLinking = false;
+                sourceColumn = null;
+                document.body.classList.remove('linking-active');
+                document.querySelector('.linking-hint').style.display = 'none';
+            } else {
+                // Start a new link
+                isLinking = true;
+                sourceColumn = {
+                    tableId: tableId,
+                    columnName: columnName
+                };
+                document.body.classList.add('linking-active');
+                document.querySelector('.linking-hint').style.display = 'block';
+            }
+        }
+
+        // Create a relationship between two columns
+        function createRelationship(sourceTableId, sourceColumnName, targetTableId, targetColumnName, type) {
+            const relationshipId = `rel_${Date.now()}`;
+            
+            relationships.push({
+                id: relationshipId,
+                sourceTableId: sourceTableId,
+                sourceColumnName: sourceColumnName,
+                targetTableId: targetTableId,
+                targetColumnName: targetColumnName,
+                type: type
+            });
+            
+            // Mark the target column as a foreign key
+            const targetTable = tables[targetTableId];
+            const targetColumn = targetTable.columns.find(c => c.name === targetColumnName);
+            if (targetColumn) {
+                targetColumn.foreignKey = true;
+                
+                // Update the foreign key indicator in the DOM
+                const columnElement = document.querySelector(`#${targetTableId} .column[data-name="${targetColumnName}"] .column-name`);
+                if (columnElement && !columnElement.querySelector('.foreign-key')) {
+                    const nameSpan = columnElement.querySelector('span:nth-child(1)');
+                    const fkSpan = document.createElement('span');
+                    fkSpan.className = 'foreign-key';
+                    fkSpan.textContent = 'FK';
+                    columnElement.insertBefore(fkSpan, nameSpan);
+                }
+            }
+            
+            drawRelationships();
+            showToast('Relationship created successfully', 'success');
+        }
+
+        // Draw all relationships on the canvas
+        function drawRelationships() {
+            // Remove all existing relationship lines
+            document.querySelectorAll('.relationship-line, .relationship-connector, .relationship-label').forEach(el => el.remove());
+            
+            relationships.forEach(function(rel) {
+                const sourceTable = document.getElementById(rel.sourceTableId);
+                const targetTable = document.getElementById(rel.targetTableId);
+                
+                if (!sourceTable || !targetTable) return;
+                
+                const sourceColumn = sourceTable.querySelector(`.column[data-name="${rel.sourceColumnName}"]`);
+                const targetColumn = targetTable.querySelector(`.column[data-name="${rel.targetColumnName}"]`);
+                
+                if (!sourceColumn || !targetColumn) return;
+                
+                const sourceRect = sourceColumn.getBoundingClientRect();
+                const targetRect = targetColumn.getBoundingClientRect();
+                const canvasRect = canvas.getBoundingClientRect();
+                
+                const sourceX = sourceRect.right - canvasRect.left + canvas.scrollLeft;
+                const sourceY = sourceRect.top + sourceRect.height / 2 - canvasRect.top + canvas.scrollTop;
+                const targetX = targetRect.left - canvasRect.left + canvas.scrollLeft;
+                const targetY = targetRect.top + targetRect.height / 2 - canvasRect.top + canvas.scrollTop;
+                
+                // Draw the line
+                const line = document.createElement('div');
+                line.className = 'relationship-line';
+                
+                const length = Math.sqrt(Math.pow(targetX - sourceX, 2) + Math.pow(targetY - sourceY, 2));
+                const angle = Math.atan2(targetY - sourceY, targetX - sourceX) * 180 / Math.PI;
+                
+                line.style.width = `${length}px`;
+                line.style.left = `${sourceX}px`;
+                line.style.top = `${sourceY}px`;
+                line.style.transform = `rotate(${angle}deg)`;
+                line.style.transformOrigin = '0 0';
+                line.style.borderTop = '2px solid var(--relationship-color)';
+                
+                canvas.appendChild(line);
+                
+                // Draw the connectors
+                const sourceConnector = document.createElement('div');
+                sourceConnector.className = 'relationship-connector';
+                sourceConnector.style.left = `${sourceX}px`;
+                sourceConnector.style.top = `${sourceY}px`;
+                canvas.appendChild(sourceConnector);
+                
+                const targetConnector = document.createElement('div');
+                targetConnector.className = 'relationship-connector';
+                targetConnector.style.left = `${targetX}px`;
+                targetConnector.style.top = `${targetY}px`;
+                canvas.appendChild(targetConnector);
+                
+                // Add the relationship label
+                const labelX = sourceX + (targetX - sourceX) / 2;
+                const labelY = sourceY + (targetY - sourceY) / 2 - 10;
+                
+                const label = document.createElement('div');
+                label.className = 'relationship-label';
+                label.textContent = rel.type;
+                label.style.left = `${labelX}px`;
+                label.style.top = `${labelY}px`;
+                canvas.appendChild(label);
+            });
+        }
+
+        // Handle mouse down event
+        function handleMouseDown(e) {
+            if (isLinking) return;
+            
+            const target = e.target.closest('.table');
+            if (target) {
+                isDragging = true;
+                draggedElement = target;
+                const rect = target.getBoundingClientRect();
+                dragOffsetX = e.clientX - rect.left;
+                dragOffsetY = e.clientY - rect.top;
+                target.style.zIndex = 10;
+            }
+        }
+
+        // Handle mouse move event
+        function handleMouseMove(e) {
+            if (isDragging && draggedElement) {
+                const canvasRect = canvas.getBoundingClientRect();
+                const x = e.clientX - canvasRect.left - dragOffsetX + canvas.scrollLeft;
+                const y = e.clientY - canvasRect.top - dragOffsetY + canvas.scrollTop;
+                
+                draggedElement.style.left = `${x}px`;
+                draggedElement.style.top = `${y}px`;
+                
+                drawRelationships();
+            }
+        }
+
+        // Handle mouse up event
+        function handleMouseUp() {
+            if (isDragging && draggedElement) {
+                draggedElement.style.zIndex = 1;
+                isDragging = false;
+                draggedElement = null;
+            }
+        }
+
+        // Add a column to a table
+        function addColumnToTable(tableId) {
+            currentTableId = tableId;
             openModal('add-column-modal');
             document.getElementById('column-name').value = '';
             document.getElementById('column-type').value = 'VARCHAR(255)';
             document.getElementById('column-primary-key').checked = false;
             document.getElementById('column-nullable').checked = true;
-        });
-
-        document.getElementById('btn-add-column-submit').addEventListener('click', function() {
-            addColumnFromModal();
-        });
-
-        document.getElementById('btn-create-table').addEventListener('click', function() {
-            createTableFromModal();
-        });
-
-        document.getElementById('btn-copy').addEventListener('click', function() {
-            const output = document.getElementById('export-output');
-            output.select();
-            document.execCommand('copy');
-            alert('Copied to clipboard!');
-        });
-
-        document.querySelectorAll('.modal-close, .modal-close-btn').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                const modal = this.closest('.modal-overlay');
-                closeModal(modal.id);
-            });
-        });
-
-        // Add click handler for relationship panel toggle
-        document.getElementById('relationship-header').addEventListener('click', function() {
-            toggleRelationshipPanel();
-        });
-
-        document.querySelectorAll('.relationship-option').forEach(function(option) {
-            option.addEventListener('click', function(e) {
-                e.stopPropagation(); // Prevent triggering the collapse/expand
-                document.querySelectorAll('.relationship-option').forEach(o => o.classList.remove('active'));
-                this.classList.add('active');
-                selectedRelationshipType = this.dataset.type;
-            });
-        });
-
-        document.querySelector('.mode-toggle').addEventListener('click', function() {
-            toggleDarkMode();
-        });
-
-        document.getElementById('zoom-in').addEventListener('click', function() {
-            zoomIn();
-        });
-
-        document.getElementById('zoom-out').addEventListener('click', function() {
-            zoomOut();
-        });
-
-        canvas.addEventListener('mousedown', handleMouseDown);
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
-
-        // Listen for messages from the parent frame
-        window.addEventListener('message', function(event) {
-            if (event.data && event.data.type === 'describe-table-response') {
-                const tableData = event.data.tableData;
-
-                // Create the table with fetched schema
-                if (tableData && tableData.name && tableData.columns && tableData.columns.length) {
-                    // Prepare columns for our create table function
-                    const columns = tableData.columns.map(col => ({
-                        name: col.name,
-                        type: col.type,
-                        primaryKey: col.primaryKey,
-                        nullable: col.nullable,
-                        foreignKey: col.foreignKey || false
-                    }));
-
-                    // Create the table on the canvas
-                    createTable(null, tableData.name, columns);
-                } else {
-                    alert('Failed to fetch table schema or table has no columns');
-                }
-            }
-        });
-    }
-
-    // Toggle relationship panel collapse/expand
-    function toggleRelationshipPanel() {
-        const content = document.getElementById('relationship-content');
-        const toggleIcon = document.querySelector('.toggle-icon');
-
-        if (isRelationshipPanelCollapsed) {
-            content.classList.remove('collapsed');
-            content.classList.add('expanded');
-            toggleIcon.classList.remove('collapsed');
-            toggleIcon.textContent = '▼';
-        } else {
-            content.classList.remove('expanded');
-            content.classList.add('collapsed');
-            toggleIcon.classList.add('collapsed');
-            toggleIcon.textContent = '▲';
-        }
-
-        isRelationshipPanelCollapsed = !isRelationshipPanelCollapsed;
-    }
-
-    // Create a new table from modal
-    function createTableFromModal() {
-        const tableName = document.getElementById('table-name').value.trim();
-        const columnItems = document.querySelectorAll('.column-item');
-
-        if (tableName === '') {
-            alert('Please enter a table name');
-            return;
-        }
-
-        if (columnItems.length === 0) {
-            alert('Please add at least one column');
-            return;
-        }
-
-        let columns = [];
-        columnItems.forEach(function(item) {
-            columns.push({
-                name: item.dataset.name,
-                type: item.dataset.type,
-                primaryKey: item.dataset.primaryKey === 'true',
-                nullable: item.dataset.nullable === 'true'
-            });
-        });
-
-        createTable(null, tableName, columns);
-        closeModal('add-table-modal');
-    }
-
-    // Add a column from modal to the column list
-    function addColumnFromModal() {
-        const name = document.getElementById('column-name').value.trim();
-        const type = document.getElementById('column-type').value;
-        const primaryKey = document.getElementById('column-primary-key').checked;
-        const nullable = document.getElementById('column-nullable').checked;
-
-        if (name === '') {
-            alert('Please enter a column name');
-            return;
-        }
-
-        const columnItem = document.createElement('div');
-        columnItem.className = 'column-item';
-        columnItem.dataset.name = name;
-        columnItem.dataset.type = type;
-        columnItem.dataset.primaryKey = primaryKey;
-        columnItem.dataset.nullable = nullable;
-
-        columnItem.innerHTML = `
-            <div class="column-name">
-                ${primaryKey ? '<span class="primary-key">PK</span>' : ''}
-                <span>${name}</span>
-                <span class="column-type">${type}</span>
-            </div>
-            <div class="column-actions">
-                <span class="action-icon delete-icon" onclick="removeColumnItem(this)">✕</span>
-            </div>
-        `;
-
-        document.getElementById('column-list').appendChild(columnItem);
-        closeModal('add-column-modal');
-    }
-
-    // Remove a column item from the list
-    function removeColumnItem(element) {
-        element.closest('.column-item').remove();
-    }
-
-    // Create a new table on the canvas
-    function createTable(id, name, columns) {
-        const tableId = id || 'table_' + Date.now();
-        const table = document.createElement('div');
-        table.className = 'table';
-        table.id = tableId;
-        table.style.left = `${Math.random() * 500 + 50}px`;
-        table.style.top = `${Math.random() * 300 + 50}px`;
-
-        let columnsHTML = '';
-        columns.forEach(function(column) {
-            columnsHTML += `
-                <div class="column" data-name="${column.name}" data-type="${column.type}" data-primary-key="${column.primaryKey}" data-nullable="${column.nullable}" data-foreign-key="${column.foreignKey || false}">
-                    <div class="column-name">
-                        ${column.primaryKey ? '<span class="primary-key">PK</span>' : ''}
-                        ${column.foreignKey ? '<span class="foreign-key">FK</span>' : ''}
-                        <span>${column.name}</span>
-                        <span class="column-type">${column.type}</span>
-                    </div>
-                    <div class="column-actions">
-                        <span class="action-icon link-icon" onclick="startLinking(event, '${tableId}', '${column.name}')">🔗</span>
-                        <span class="action-icon delete-icon" onclick="deleteColumn(event, '${tableId}', '${column.name}')">✕</span>
-                    </div>
-                </div>
-            `;
-        });
-
-        table.innerHTML = `
-            <div class="table-header">
-                <span>${name}</span>
-                <div class="column-actions">
-                    <span class="action-icon" onclick="addColumnToTable('${tableId}')">+</span>
-                    <span class="action-icon delete-icon" onclick="deleteTable('${tableId}')">✕</span>
-                </div>
-            </div>
-            <div class="table-body">
-                ${columnsHTML}
-            </div>
-        `;
-
-        canvas.appendChild(table);
-
-        tables[tableId] = {
-            id: tableId,
-            name: name,
-            columns: columns
-        };
-    }
-
-    // Start linking two columns
-    function startLinking(event, tableId, columnName) {
-        event.stopPropagation();
-
-        if (isLinking && sourceColumn) {
-            // Complete the link
-            const targetTable = tables[tableId];
-            const targetColumn = targetTable.columns.find(c => c.name === columnName);
-
-            createRelationship(sourceColumn.tableId, sourceColumn.columnName, tableId, columnName, selectedRelationshipType);
-
-            // Reset linking state
-            isLinking = false;
-            sourceColumn = null;
-            document.body.classList.remove('linking-active');
-            document.querySelector('.linking-hint').style.display = 'none';
-        } else {
-            // Start a new link
-            isLinking = true;
-            sourceColumn = {
-                tableId: tableId,
-                columnName: columnName
-            };
-            document.body.classList.add('linking-active');
-            document.querySelector('.linking-hint').style.display = 'block';
-        }
-    }
-
-    // Create a relationship between two columns
-    function createRelationship(sourceTableId, sourceColumnName, targetTableId, targetColumnName, type) {
-        const relationshipId = `rel_${Date.now()}`;
-
-        relationships.push({
-            id: relationshipId,
-            sourceTableId: sourceTableId,
-            sourceColumnName: sourceColumnName,
-            targetTableId: targetTableId,
-            targetColumnName: targetColumnName,
-            type: type
-        });
-
-        // Mark the target column as a foreign key
-        const targetTable = tables[targetTableId];
-        const targetColumn = targetTable.columns.find(c => c.name === targetColumnName);
-        if (targetColumn) {
-            targetColumn.foreignKey = true;
-
-            // Update the foreign key indicator in the DOM
-            const columnElement = document.querySelector(`#${targetTableId} .column[data-name="${targetColumnName}"] .column-name`);
-            if (columnElement && !columnElement.querySelector('.foreign-key')) {
-                const nameSpan = columnElement.querySelector('span:nth-child(1)');
-                const fkSpan = document.createElement('span');
-                fkSpan.className = 'foreign-key';
-                fkSpan.textContent = 'FK';
-                columnElement.insertBefore(fkSpan, nameSpan);
-            }
-        }
-
-        drawRelationships();
-    }
-
-    // Draw all relationships on the canvas
-    function drawRelationships() {
-        // Remove all existing relationship lines
-        document.querySelectorAll('.relationship-line, .relationship-connector, .relationship-label').forEach(el => el.remove());
-
-        relationships.forEach(function(rel) {
-            const sourceTable = document.getElementById(rel.sourceTableId);
-            const targetTable = document.getElementById(rel.targetTableId);
-
-            if (!sourceTable || !targetTable) return;
-
-            const sourceColumn = sourceTable.querySelector(`.column[data-name="${rel.sourceColumnName}"]`);
-            const targetColumn = targetTable.querySelector(`.column[data-name="${rel.targetColumnName}"]`);
-
-            if (!sourceColumn || !targetColumn) return;
-
-            const sourceRect = sourceColumn.getBoundingClientRect();
-            const targetRect = targetColumn.getBoundingClientRect();
-            const canvasRect = canvas.getBoundingClientRect();
-
-            const sourceX = sourceRect.right - canvasRect.left + canvas.scrollLeft;
-            const sourceY = sourceRect.top + sourceRect.height / 2 - canvasRect.top + canvas.scrollTop;
-            const targetX = targetRect.left - canvasRect.left + canvas.scrollLeft;
-            const targetY = targetRect.top + targetRect.height / 2 - canvasRect.top + canvas.scrollTop;
-
-            // Draw the line
-            const line = document.createElement('div');
-            line.className = 'relationship-line';
-
-            const length = Math.sqrt(Math.pow(targetX - sourceX, 2) + Math.pow(targetY - sourceY, 2));
-            const angle = Math.atan2(targetY - sourceY, targetX - sourceX) * 180 / Math.PI;
-
-            line.style.width = `${length}px`;
-            line.style.left = `${sourceX}px`;
-            line.style.top = `${sourceY}px`;
-            line.style.transform = `rotate(${angle}deg)`;
-            line.style.transformOrigin = '0 0';
-            line.style.borderTop = '2px solid var(--relationship-color)';
-
-            canvas.appendChild(line);
-
-            // Draw the connectors
-            const sourceConnector = document.createElement('div');
-            sourceConnector.className = 'relationship-connector';
-            sourceConnector.style.left = `${sourceX}px`;
-            sourceConnector.style.top = `${sourceY}px`;
-            canvas.appendChild(sourceConnector);
-
-            const targetConnector = document.createElement('div');
-            targetConnector.className = 'relationship-connector';
-            targetConnector.style.left = `${targetX}px`;
-            targetConnector.style.top = `${targetY}px`;
-            canvas.appendChild(targetConnector);
-
-            // Add the relationship label
-            const labelX = sourceX + (targetX - sourceX) / 2;
-            const labelY = sourceY + (targetY - sourceY) / 2 - 10;
-
-            const label = document.createElement('div');
-            label.className = 'relationship-label';
-            label.textContent = rel.type;
-            label.style.left = `${labelX}px`;
-            label.style.top = `${labelY}px`;
-            canvas.appendChild(label);
-        });
-    }
-
-    // Handle mouse down event
-    function handleMouseDown(e) {
-        if (isLinking) return;
-
-        const target = e.target.closest('.table');
-        if (target) {
-            isDragging = true;
-            draggedElement = target;
-            const rect = target.getBoundingClientRect();
-            dragOffsetX = e.clientX - rect.left;
-            dragOffsetY = e.clientY - rect.top;
-            target.style.zIndex = 10;
-        }
-    }
-
-    // Handle mouse move event
-    function handleMouseMove(e) {
-        if (isDragging && draggedElement) {
-            const canvasRect = canvas.getBoundingClientRect();
-            const x = e.clientX - canvasRect.left - dragOffsetX + canvas.scrollLeft;
-            const y = e.clientY - canvasRect.top - dragOffsetY + canvas.scrollTop;
-
-            draggedElement.style.left = `${x}px`;
-            draggedElement.style.top = `${y}px`;
-
-            drawRelationships();
-        }
-    }
-
-    // Handle mouse up event
-    function handleMouseUp() {
-        if (isDragging && draggedElement) {
-            draggedElement.style.zIndex = 1;
-            isDragging = false;
-            draggedElement = null;
-        }
-    }
-
-    // Add a column to a table
-    function addColumnToTable(tableId) {
-        currentTableId = tableId;
-        openModal('add-column-modal');
-        document.getElementById('column-name').value = '';
-        document.getElementById('column-type').value = 'VARCHAR(255)';
-        document.getElementById('column-primary-key').checked = false;
-        document.getElementById('column-nullable').checked = true;
-
-        // Change the submit button action
-        const submitBtn = document.getElementById('btn-add-column-submit');
-        submitBtn.onclick = function() {
-            const name = document.getElementById('column-name').value.trim();
-            const type = document.getElementById('column-type').value;
-            const primaryKey = document.getElementById('column-primary-key').checked;
-            const nullable = document.getElementById('column-nullable').checked;
-
-            if (name === '') {
-                alert('Please enter a column name');
-                return;
-            }
-
-            // Add column to the data model
-            const table = tables[tableId];
-            if (table) {
-                table.columns.push({
-                    name: name,
-                    type: type,
-                    primaryKey: primaryKey,
-                    nullable: nullable
-                });
-
-                // Add column to the DOM
-                const tableBody = document.querySelector(`#${tableId} .table-body`);
-                const column = document.createElement('div');
-                column.className = 'column';
-                column.dataset.name = name;
-                column.dataset.type = type;
-                column.dataset.primaryKey = primaryKey;
-                column.dataset.nullable = nullable;
-                column.dataset.foreignKey = false;
-
-                column.innerHTML = `
-                    <div class="column-name">
-                        ${primaryKey ? '<span class="primary-key">PK</span>' : ''}
-                        <span>${name}</span>
-                        <span class="column-type">${type}</span>
-                    </div>
-                    <div class="column-actions">
-                        <span class="action-icon link-icon" onclick="startLinking(event, '${tableId}', '${name}')">🔗</span>
-                        <span class="action-icon delete-icon" onclick="deleteColumn(event, '${tableId}', '${name}')">✕</span>
-                    </div>
-                `;
-
-                tableBody.appendChild(column);
-            }
-
-            closeModal('add-column-modal');
-        };
-    }
-
-    // Delete a column from a table
-    function deleteColumn(event, tableId, columnName) {
-        event.stopPropagation();
-
-        if (confirm(`Are you sure you want to delete the column "${columnName}"?`)) {
-            // Remove from data model
-            const table = tables[tableId];
-            if (table) {
-                table.columns = table.columns.filter(c => c.name !== columnName);
-            }
-
-            // Remove from DOM
-            const column = document.querySelector(`#${tableId} .column[data-name="${columnName}"]`);
-            if (column) {
-                column.remove();
-            }
-
-            // Remove associated relationships
-            relationships = relationships.filter(r =>
-                !(r.sourceTableId === tableId && r.sourceColumnName === columnName) &&
-                !(r.targetTableId === tableId && r.targetColumnName === columnName)
-            );
-
-            drawRelationships();
-        }
-    }
-
-    // Delete a table
-    function deleteTable(tableId) {
-        if (confirm(`Are you sure you want to delete this table?`)) {
-            // Remove from data model
-            delete tables[tableId];
-
-            // Remove from DOM
-            const table = document.getElementById(tableId);
-            if (table) {
-                table.remove();
-            }
-
-            // Remove associated relationships
-            relationships = relationships.filter(r =>
-                r.sourceTableId !== tableId && r.targetTableId !== tableId
-            );
-
-            drawRelationships();
-        }
-    }
-
-    // Open a modal
-    function openModal(modalId) {
-        const modal = document.getElementById(modalId);
-        modal.style.display = 'flex';
-    }
-
-    // Close a modal
-    function closeModal(modalId) {
-        const modal = document.getElementById(modalId);
-        modal.style.display = 'none';
-    }
-
-    // Toggle dark mode
-    function toggleDarkMode() {
-        isDarkMode = !isDarkMode;
-        document.body.classList.toggle('dark-mode', isDarkMode);
-        const modeIcon = document.querySelector('.mode-icon');
-        modeIcon.textContent = isDarkMode ? '🌙' : '☀️';
-
-        // Update the text on the toggle button
-        const modeToggleText = document.querySelector('.mode-toggle span:last-child');
-        modeToggleText.textContent = isDarkMode ? 'Light Mode' : 'Dark Mode';
-
-        // Redraw relationships to ensure colors are updated
-        drawRelationships();
-    }
-
-    // Zoom in
-    function zoomIn() {
-        if (zoomLevel < 200) {
-            zoomLevel += 10;
-            updateZoom();
-        }
-    }
-
-    // Zoom out
-    function zoomOut() {
-        if (zoomLevel > 50) {
-            zoomLevel -= 10;
-            updateZoom();
-        }
-    }
-
-    // Update zoom level
-    function updateZoom() {
-        canvas.style.transform = `scale(${zoomLevel / 100})`;
-        canvas.style.transformOrigin = '0 0';
-        document.getElementById('zoom-level').textContent = `${zoomLevel}%`;
-        drawRelationships();
-    }
-
-    // Export schema
-    function exportSchema() {
-        const format = document.getElementById('export-format').value;
-        let output = '';
-
-        if (format === 'json') {
-            const schema = {
-                tables: Object.values(tables),
-                relationships: relationships
-            };
-            output = JSON.stringify(schema, null, 2);
-        } else if (format === 'sql') {
-            output = generateSQL();
-        }
-
-        document.getElementById('export-output').value = output;
-    }
-
-    // Generate SQL
-    function generateSQL() {
-        let sql = '';
-
-        // First pass: Create tables
-        for (const tableId in tables) {
-            const table = tables[tableId];
-
-            sql += `CREATE TABLE ${table.name} (\n`;
-
-            const columnDefinitions = table.columns.map(column => {
-                let def = `  ${column.name} ${column.type}`;
-
-                if (!column.nullable) {
-                    def += ' NOT NULL';
-                }
-
-                if (column.primaryKey) {
-                    def += ' PRIMARY KEY';
+            
+            // Reset to normal add mode
+            sessionStorage.removeItem('editing-column');
+            document.getElementById('btn-add-column-submit').textContent = 'Add Column';
+            
+            // Change the submit button action
+            const submitBtn = document.getElementById('btn-add-column-submit');
+            submitBtn.onclick = function() {
+                const name = document.getElementById('column-name').value.trim();
+                const type = document.getElementById('column-type').value;
+                const primaryKey = document.getElementById('column-primary-key').checked;
+                const nullable = document.getElementById('column-nullable').checked;
+                
+                if (name === '') {
+                    showToast('Please enter a column name', 'error');
+                    return;
                 }
                 
-                return def;
-            });
-
-            sql += columnDefinitions.join(',\n');
-            sql += '\n);\n\n';
+                // Check for duplicate column names
+                const table = tables[tableId];
+                if (table && table.columns.some(c => c.name === name)) {
+                    showToast('Column name already exists in this table', 'error');
+                    return;
+                }
+                
+                // Add column to the data model
+                if (table) {
+                    table.columns.push({
+                        name: name,
+                        type: type,
+                        primaryKey: primaryKey,
+                        nullable: nullable
+                    });
+                    
+                    // Add column to the DOM
+                    const tableBody = document.querySelector(`#${tableId} .table-body`);
+                    const column = document.createElement('div');
+                    column.className = 'column';
+                    column.dataset.name = name;
+                    column.dataset.type = type;
+                    column.dataset.primaryKey = primaryKey;
+                    column.dataset.nullable = nullable;
+                    column.dataset.foreignKey = false;
+                    
+                    column.innerHTML = `
+                        <div class="column-name">
+                            ${primaryKey ? '<span class="primary-key">PK</span>' : ''}
+                            <span>${name}</span>
+                            <span class="column-type">${type}</span>
+                        </div>
+                        <div class="column-actions">
+                            <span class="action-icon link-icon" onclick="startLinking(event, '${tableId}', '${name}')">🔗</span>
+                            <span class="action-icon delete-icon" onclick="deleteColumn(event, '${tableId}', '${name}')">✕</span>
+                        </div>
+                    `;
+                    
+                    tableBody.appendChild(column);
+                    showToast(`Column "${name}" added to table`, 'success');
+                }
+                
+                closeModal('add-column-modal');
+            };
         }
 
-        // Second pass: Add foreign key constraints
-        relationships.forEach(rel => {
-            const sourceTable = tables[rel.sourceTableId];
-            const targetTable = tables[rel.targetTableId];
-
-            if (sourceTable && targetTable) {
-                const constraintName = `fk_${targetTable.name}_${rel.targetColumnName}`;
-
-                sql += `ALTER TABLE ${targetTable.name}\n`;
-                sql += `ADD CONSTRAINT ${constraintName}\n`;
-                sql += `FOREIGN KEY (${rel.targetColumnName})\n`;
-                sql += `REFERENCES ${sourceTable.name} (${rel.sourceColumnName});\n\n`;
+        // Delete a column from a table
+        function deleteColumn(event, tableId, columnName) {
+            event.stopPropagation();
+            
+            if (confirm(`Are you sure you want to delete the column "${columnName}"?`)) {
+                // Remove from data model
+                const table = tables[tableId];
+                if (table) {
+                    table.columns = table.columns.filter(c => c.name !== columnName);
+                }
+                
+                // Remove from DOM
+                const column = document.querySelector(`#${tableId} .column[data-name="${columnName}"]`);
+                if (column) {
+                    column.remove();
+                }
+                
+                // Remove associated relationships
+                relationships = relationships.filter(r => 
+                    !(r.sourceTableId === tableId && r.sourceColumnName === columnName) && 
+                    !(r.targetTableId === tableId && r.targetColumnName === columnName)
+                );
+                
+                drawRelationships();
+                showToast(`Column "${columnName}" deleted`, 'info');
             }
-        });
+        }
 
-        return sql;
-    }
+        // Delete a table
+        function deleteTable(tableId) {
+            if (confirm(`Are you sure you want to delete this table?`)) {
+                // Get table name for notification
+                const tableName = tables[tableId]?.name || "Unknown table";
+                
+                // Remove from data model
+                delete tables[tableId];
+                
+                // Remove from DOM
+                const table = document.getElementById(tableId);
+                if (table) {
+                    table.remove();
+                }
+                
+                // Remove associated relationships
+                relationships = relationships.filter(r => 
+                    r.sourceTableId !== tableId && r.targetTableId !== tableId
+                );
+                
+                drawRelationships();
+                showToast(`Table "${tableName}" deleted`, 'info');
+            }
+        }
 
-    // Initialize on load
-    document.addEventListener('DOMContentLoaded', init);
-</script>
+        // Open a modal
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.style.display = 'flex';
+        }
+
+        // Close a modal
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.style.display = 'none';
+        }
+
+        // Toggle dark mode
+        function toggleDarkMode() {
+            isDarkMode = !isDarkMode;
+            document.body.classList.toggle('dark-mode', isDarkMode);
+            const modeIcon = document.querySelector('.mode-icon');
+            modeIcon.textContent = isDarkMode ? '🌙' : '☀️';
+            
+            // Update the text on the toggle button
+            const modeToggleText = document.querySelector('.mode-toggle span:last-child');
+            modeToggleText.textContent = isDarkMode ? 'Light Mode' : 'Dark Mode';
+            
+            // Redraw relationships to ensure colors are updated
+            drawRelationships();
+        }
+
+        // Zoom in
+        function zoomIn() {
+            if (zoomLevel < 200) {
+                zoomLevel += 10;
+                updateZoom();
+            }
+        }
+
+        // Zoom out
+        function zoomOut() {
+            if (zoomLevel > 50) {
+                zoomLevel -= 10;
+                updateZoom();
+            }
+        }
+
+        // Update zoom level
+        function updateZoom() {
+            canvas.style.transform = `scale(${zoomLevel / 100})`;
+            canvas.style.transformOrigin = '0 0';
+            document.getElementById('zoom-level').textContent = `${zoomLevel}%`;
+            drawRelationships();
+        }
+
+        // Export schema
+        function exportSchema() {
+            const format = document.getElementById('export-format').value;
+            let output = '';
+            
+            if (format === 'json') {
+                const schema = {
+                    tables: Object.values(tables),
+                    relationships: relationships
+                };
+                output = JSON.stringify(schema, null, 2);
+            } else if (format === 'sql') {
+                output = generateSQL();
+            }
+            
+            document.getElementById('export-output').value = output;
+        }
+
+        // Generate SQL
+        function generateSQL() {
+            let sql = '';
+            
+            // First pass: Create tables
+            for (const tableId in tables) {
+                const table = tables[tableId];
+                
+                sql += `CREATE TABLE ${table.name} (\n`;
+                
+                const columnDefinitions = table.columns.map(column => {
+                    let def = `  ${column.name} ${column.type}`;
+                    
+                    if (!column.nullable) {
+                        def += ' NOT NULL';
+                    }
+                    
+                    if (column.primaryKey) {
+                        def += ' PRIMARY KEY';
+                    }
+                    
+                    return def;
+                });
+                
+                sql += columnDefinitions.join(',\n');
+                sql += '\n);\n\n';
+            }
+            
+            // Second pass: Add foreign key constraints
+            relationships.forEach(rel => {
+                const sourceTable = tables[rel.sourceTableId];
+                const targetTable = tables[rel.targetTableId];
+                
+                if (sourceTable && targetTable) {
+                    const constraintName = `fk_${targetTable.name}_${rel.targetColumnName}`;
+                    
+                    sql += `ALTER TABLE ${targetTable.name}\n`;
+                    sql += `ADD CONSTRAINT ${constraintName}\n`;
+                    sql += `FOREIGN KEY (${rel.targetColumnName})\n`;
+                    sql += `REFERENCES ${sourceTable.name} (${rel.sourceColumnName});\n\n`;
+                }
+            });
+            
+            return sql;
+        }
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
 </body>
 </html>
