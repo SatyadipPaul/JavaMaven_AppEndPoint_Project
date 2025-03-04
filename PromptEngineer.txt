@@ -1,0 +1,100 @@
+Assume you are an advanced LLM Prompt Engineer. You need to think of best way the promt can be structured for the LLM to clearly generate the expected result.
+
+-->Points to consider before creating Prompt.
+1. Understand the users objective for the prompt.
+2. Think of ways you can ask user to provide more information in multiple inputs step by step until you think all necessary information is available for crafting the perfect promt.
+3. In case of promt generation for any coding objective you need to get most information in the technology stack to be used or used already.
+4. Structure the promt that's best way to provide exact and precise objective for the promt.
+5. Once you have crafted the perfect promt ask the user for scoring between 1 to 5.
+6. If score is less than 3 ask for what specific  aspect of the promt needs fix or improvement
+7. Review and understand the fix or improvement and go back to step 1 again for more clarity
+
+Based on the above create a Advanced LLM Promt Engineering Framework that clearly adheres to the above processes
+
+
+*Thinking...*
+
+> I need to create an Advanced LLM Prompt Engineering Framework that follows the process outlined in the request. This framework should:
+> 
+> 1. Help understand the user's objective
+> 2. Gather necessary information through iterative questioning
+> 3. Collect specific technical details for coding prompts
+> 4. Structure prompts effectively
+> 5. Get feedback on a 1-5 scale
+> 6. Iterate if score is below 3
+> 
+> Let me design a comprehensive framework that incorporates these elements:
+> 
+> # Advanced LLM Prompt Engineering Framework
+> 
+> The framework should have distinct stages:
+> 
+> 1. **Objective Clarification** - Understanding what the user wants to accomplish
+> 2. **Information Gathering** - Iterative collection of relevant details
+> 3. **Prompt Structuring** - Organizing the information into an effective prompt format
+> 4. **Feedback Loop** - Scoring and refinement process
+> 5. **Delivery** - Final prompt presentation
+> 
+> For each stage, I'll outline specific questions and processes that guide the prompt engineering process.
+> 
+> My framework should be detailed enough to be useful but structured in a way that's easy to follow. I'll make it conversational while maintaining a professional approach that systematically works through the prompt engineering process.
+
+# Advanced LLM Prompt Engineering Framework
+
+Welcome to the Advanced Prompt Engineering Framework. I'll help you craft the perfect prompt by following a structured approach.
+
+## 1. OBJECTIVE CLARIFICATION
+Let's start by understanding your goal:
+- What specific task or output are you trying to get from an LLM?
+- Is this for content creation, code generation, problem-solving, or something else?
+- What is the ideal end result you're hoping to achieve?
+
+## 2. INFORMATION GATHERING
+Based on your objective, I'll ask targeted questions about:
+- Context and background information
+- Specific requirements or constraints
+- Format preferences (length, style, structure)
+- Target audience (if applicable)
+- For coding prompts: tech stack, existing code, frameworks, and requirements
+
+## 3. PROMPT STRUCTURING
+I'll then craft a prompt with these elements:
+- Clear role definition for the LLM
+- Context and background information
+- Specific instructions and constraints
+- Format guidelines
+- Examples (if helpful)
+- Step-by-step guidance (if needed)
+
+## 4. FEEDBACK LOOP
+- I'll present the draft prompt for your review
+- Please score it on a scale of 1-5
+- If below 3, I'll ask for specific aspects that need improvement
+- We'll refine until you're satisfied
+
+## 5. FINAL DELIVERY
+- The optimized prompt, ready for use
+
+Shall we begin? What's the objective for the prompt you need help creating?
+
+
+
+
+Analyze the following Java class and create a business-oriented ASCII flow diagram:
+
+[PASTE JAVA CODE HERE]
+
+For your analysis:
+1. Identify all methods in the class and their relationships
+2. Map the flow of execution between methods
+3. Note any significant decision points or processes
+4. If any referenced methods are missing from this class, please ask me for them
+
+When creating the ASCII flow diagram:
+- Use business process terminology rather than technical programming terms
+- Focus on the "what" (business function) not the "how" (technical implementation)
+- Use simple shapes and connectors (boxes, arrows, diamonds)
+- Include a brief description of what each step accomplishes in business terms
+- Organize the diagram to show the logical flow of business processes
+
+The diagram should help a non-technical stakeholder understand what this code accomplishes without needing to understand Java syntax.
