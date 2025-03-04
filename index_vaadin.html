@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Database Schema Designer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root {
             --primary-color: #3498db;
@@ -199,8 +200,8 @@
         }
 
         .table-body {
-            max-height: 300px;
-            overflow-y: auto;
+            /* Removed max-height to fix Issue #2 */
+            overflow-y: visible;
         }
 
         .column {
@@ -275,11 +276,22 @@
             color: var(--accent-color);
         }
 
-        .relationship-line {
+        /* SVG relationship container */
+        .relationship-container {
             position: absolute;
-            pointer-events: none;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             z-index: 0;
-            border-color: var(--relationship-color) !important;
+            pointer-events: none;
+        }
+
+        /* SVG styling for relationships */
+        .relationship-path {
+            fill: none;
+            stroke: var(--relationship-color);
+            stroke-width: 2px;
         }
 
         .relationship-connector {
@@ -840,10 +852,10 @@
             <h1>Database Schema Designer</h1>
         </div>
         <div class="toolbar-actions">
-            <button id="btn-add-table">Add Table</button>
-            <button id="btn-import-table"><span class="icon-database"></span> Import Table</button>
-            <button id="btn-export">Export</button>
-            <button id="btn-clear" class="btn-danger">Clear All</button>
+            <button id="btn-add-table"><i class="fas fa-plus"></i> Add Table</button>
+            <button id="btn-import-table"><i class="fas fa-database"></i> Import Table</button>
+            <button id="btn-export"><i class="fas fa-file-export"></i> Export</button>
+            <button id="btn-clear" class="btn-danger"><i class="fas fa-trash-alt"></i> Clear All</button>
         </div>
     </div>
 
@@ -879,13 +891,16 @@
     </div>
 
     <div class="canvas-container">
-        <div class="canvas" id="canvas"></div>
+        <div class="canvas" id="canvas">
+            <!-- SVG for relationships will be added here -->
+            <svg class="relationship-container" id="relationships-svg"></svg>
+        </div>
     </div>
 
     <div class="zoom-controls">
-        <div class="zoom-btn" id="zoom-out">-</div>
+        <div class="zoom-btn" id="zoom-out"><i class="fas fa-minus"></i></div>
         <div class="zoom-label" id="zoom-level">100%</div>
-        <div class="zoom-btn" id="zoom-in">+</div>
+        <div class="zoom-btn" id="zoom-in"><i class="fas fa-plus"></i></div>
     </div>
 
     <!-- Toast Messages -->
@@ -911,7 +926,7 @@
                         At least one column must be marked as a primary key
                     </div>
                     <div class="column-list" id="column-list"></div>
-                    <button id="btn-add-column" class="add-column-btn">Add Column</button>
+                    <button id="btn-add-column" class="add-column-btn"><i class="fas fa-plus"></i> Add Column</button>
                 </div>
             </div>
             <div class="modal-footer">
@@ -964,8 +979,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button id="btn-copy" class="btn-secondary">Copy to Clipboard</button>
-                <button id="btn-save-export">Save to Server</button>
+                <button id="btn-copy" class="btn-secondary"><i class="fas fa-copy"></i> Copy to Clipboard</button>
+                <button id="btn-save-export"><i class="fas fa-save"></i> Save to Server</button>
                 <button class="modal-close-btn">Close</button>
             </div>
         </div>
@@ -1034,6 +1049,7 @@
         let dragOffsetY = 0;
         let selectedRelationshipType = "1:N";
         let canvas = document.getElementById('canvas');
+        let svgContainer = document.getElementById('relationships-svg');
         let isDarkMode = false;
         let columnCounter = 0;
         let currentTableId = null;
@@ -1045,6 +1061,14 @@
         function init() {
             bindEvents();
             setupMessageListeners();
+            resizeSvgContainer();
+            window.addEventListener('resize', resizeSvgContainer);
+        }
+
+        // Resize SVG container to match canvas size
+        function resizeSvgContainer() {
+            svgContainer.setAttribute('width', canvas.scrollWidth);
+            svgContainer.setAttribute('height', canvas.scrollHeight);
         }
 
         // Listen for messages from Vaadin server
@@ -1116,8 +1140,8 @@
                     <span class="column-type">${type}</span>
                 </div>
                 <div class="column-actions">
-                    <span class="action-icon edit-icon" onclick="editColumnItem(this)">✎</span>
-                    <span class="action-icon delete-icon" onclick="removeColumnItem(this)">✕</span>
+                    <span class="action-icon edit-icon" onclick="editColumnItem(this)"><i class="fas fa-edit"></i></span>
+                    <span class="action-icon delete-icon" onclick="removeColumnItem(this)"><i class="fas fa-trash-alt"></i></span>
                 </div>
             `;
             
@@ -1186,8 +1210,8 @@
                             <span class="column-type">${type}</span>
                         </div>
                         <div class="column-actions">
-                            <span class="action-icon edit-icon" onclick="editColumnItem(this)">✎</span>
-                            <span class="action-icon delete-icon" onclick="removeColumnItem(this)">✕</span>
+                            <span class="action-icon edit-icon" onclick="editColumnItem(this)"><i class="fas fa-edit"></i></span>
+                            <span class="action-icon delete-icon" onclick="removeColumnItem(this)"><i class="fas fa-trash-alt"></i></span>
                         </div>
                     `;
                     
@@ -1315,6 +1339,14 @@
                     tables = {};
                     relationships = [];
                     canvas.innerHTML = '';
+                    // Re-add the SVG container after clearing
+                    const svgElement = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                    svgElement.setAttribute('class', 'relationship-container');
+                    svgElement.setAttribute('id', 'relationships-svg');
+                    canvas.appendChild(svgElement);
+                    svgContainer = document.getElementById('relationships-svg');
+                    resizeSvgContainer();
+                    
                     showToast('All tables cleared', 'info');
                 }
             });
@@ -1528,8 +1560,8 @@
                             <span class="column-type">${column.type}</span>
                         </div>
                         <div class="column-actions">
-                            <span class="action-icon link-icon" onclick="startLinking(event, '${tableId}', '${column.name}')">🔗</span>
-                            <span class="action-icon delete-icon" onclick="deleteColumn(event, '${tableId}', '${column.name}')">✕</span>
+                            <span class="action-icon link-icon" onclick="startLinking(event, '${tableId}', '${column.name}')"><i class="fas fa-link"></i></span>
+                            <span class="action-icon delete-icon" onclick="deleteColumn(event, '${tableId}', '${column.name}')"><i class="fas fa-trash-alt"></i></span>
                         </div>
                     </div>
                 `;
@@ -1539,8 +1571,8 @@
                 <div class="table-header">
                     <span>${name}</span>
                     <div class="column-actions">
-                        <span class="action-icon" onclick="addColumnToTable('${tableId}')">+</span>
-                        <span class="action-icon delete-icon" onclick="deleteTable('${tableId}')">✕</span>
+                        <span class="action-icon" onclick="addColumnToTable('${tableId}')"><i class="fas fa-plus"></i></span>
+                        <span class="action-icon delete-icon" onclick="deleteTable('${tableId}')"><i class="fas fa-trash-alt"></i></span>
                     </div>
                 </div>
                 <div class="table-body">
@@ -1555,6 +1587,12 @@
                 name: name,
                 columns: columns
             };
+            
+            // Fix for Issue #4: Ensure buttons remain enabled after table creation
+            document.getElementById('btn-add-table').disabled = false;
+            document.getElementById('btn-import-table').disabled = false;
+            document.getElementById('btn-export').disabled = false;
+            document.getElementById('btn-clear').disabled = false;
         }
 
         // Start linking two columns
@@ -1619,10 +1657,18 @@
             showToast('Relationship created successfully', 'success');
         }
 
-        // Draw all relationships on the canvas
+        // Draw all relationships on the canvas using SVG paths with bezier curves
         function drawRelationships() {
-            // Remove all existing relationship lines
-            document.querySelectorAll('.relationship-line, .relationship-connector, .relationship-label').forEach(el => el.remove());
+            // Clear existing SVG content
+            while (svgContainer.firstChild) {
+                svgContainer.removeChild(svgContainer.firstChild);
+            }
+            
+            // Make sure SVG container fits the canvas
+            resizeSvgContainer();
+            
+            // Remove existing relationship labels and connectors
+            document.querySelectorAll('.relationship-connector, .relationship-label').forEach(el => el.remove());
             
             relationships.forEach(function(rel) {
                 const sourceTable = document.getElementById(rel.sourceTableId);
@@ -1644,21 +1690,18 @@
                 const targetX = targetRect.left - canvasRect.left + canvas.scrollLeft;
                 const targetY = targetRect.top + targetRect.height / 2 - canvasRect.top + canvas.scrollTop;
                 
-                // Draw the line
-                const line = document.createElement('div');
-                line.className = 'relationship-line';
+                // Calculate control points for bezier curve (to create smooth lines)
+                const dx = Math.abs(targetX - sourceX) * 0.5;
+                const controlPoint1X = sourceX + dx;
+                const controlPoint1Y = sourceY;
+                const controlPoint2X = targetX - dx;
+                const controlPoint2Y = targetY;
                 
-                const length = Math.sqrt(Math.pow(targetX - sourceX, 2) + Math.pow(targetY - sourceY, 2));
-                const angle = Math.atan2(targetY - sourceY, targetX - sourceX) * 180 / Math.PI;
-                
-                line.style.width = `${length}px`;
-                line.style.left = `${sourceX}px`;
-                line.style.top = `${sourceY}px`;
-                line.style.transform = `rotate(${angle}deg)`;
-                line.style.transformOrigin = '0 0';
-                line.style.borderTop = '2px solid var(--relationship-color)';
-                
-                canvas.appendChild(line);
+                // Create SVG path with bezier curve
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('class', 'relationship-path');
+                path.setAttribute('d', `M ${sourceX} ${sourceY} C ${controlPoint1X} ${controlPoint1Y}, ${controlPoint2X} ${controlPoint2Y}, ${targetX} ${targetY}`);
+                svgContainer.appendChild(path);
                 
                 // Draw the connectors
                 const sourceConnector = document.createElement('div');
@@ -1673,9 +1716,9 @@
                 targetConnector.style.top = `${targetY}px`;
                 canvas.appendChild(targetConnector);
                 
-                // Add the relationship label
+                // Add the relationship label at the middle of the curve
                 const labelX = sourceX + (targetX - sourceX) / 2;
-                const labelY = sourceY + (targetY - sourceY) / 2 - 10;
+                const labelY = sourceY + (targetY - sourceY) / 2 - 15; // Position above the midpoint of curve
                 
                 const label = document.createElement('div');
                 label.className = 'relationship-label';
@@ -1783,8 +1826,8 @@
                             <span class="column-type">${type}</span>
                         </div>
                         <div class="column-actions">
-                            <span class="action-icon link-icon" onclick="startLinking(event, '${tableId}', '${name}')">🔗</span>
-                            <span class="action-icon delete-icon" onclick="deleteColumn(event, '${tableId}', '${name}')">✕</span>
+                            <span class="action-icon link-icon" onclick="startLinking(event, '${tableId}', '${name}')"><i class="fas fa-link"></i></span>
+                            <span class="action-icon delete-icon" onclick="deleteColumn(event, '${tableId}', '${name}')"><i class="fas fa-trash-alt"></i></span>
                         </div>
                     `;
                     
