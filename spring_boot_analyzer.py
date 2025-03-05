@@ -123,9 +123,11 @@ class SpringBootAnalyzer:
         # Tree structure for the project
         self.project_tree = {"name": os.path.basename(self.root_dir), "type": "dir", "children": []}
         
-        # File numbering system
+        # File and folder numbering system
         self.current_folder_num = 0
         self.file_map = {}  # Maps numbers to file paths
+        self.folder_map = {}  # Maps numbers to folder paths
+        self.folder_files = defaultdict(list)  # Maps folder numbers to list of files within
 
     def _add_default_exclusions(self):
         """Add default exclusions for Spring Boot projects"""
@@ -463,8 +465,8 @@ class SpringBootAnalyzer:
             "path": dir_path
         }
         
-        # Store the folder in file map
-        self.file_map[folder_num] = dir_path
+        # Store the folder in folder map
+        self.folder_map[folder_num] = dir_path
         
         try:
             items = []
@@ -510,6 +512,10 @@ class SpringBootAnalyzer:
                     # Store the file in file map
                     self.file_map[file_num] = full_path
                     
+                    # Store the file in folder_files map
+                    if is_convertible:
+                        self.folder_files[folder_num].append(full_path)
+                    
         except Exception as e:
             print(f"Error scanning directory {dir_path}: {e}", file=sys.stderr)
             result["children"].append({"name": "Error: " + str(e), "type": "error"})
@@ -520,9 +526,11 @@ class SpringBootAnalyzer:
         """Analyze the Spring Boot project and build the project tree"""
         print(f"Analyzing Spring Boot project in {self.root_dir}...")
         
-        # Reset counters
+        # Reset counters and maps
         self.current_folder_num = 0
         self.file_map = {}
+        self.folder_map = {}
+        self.folder_files = defaultdict(list)
         
         # Detect JDK and Spring Boot versions
         self._detect_jdk_version()
@@ -739,7 +747,56 @@ class SpringBootAnalyzer:
                 return False, "", f"Error reading file: {e}"
         except Exception as e:
             return False, "", f"Error reading file: {e}"
+    
+    def convert_folder_files(self, folder_num: str, output_dir: str = None) -> List[Tuple[str, bool, str]]:
+        """
+        Convert all convertible files in a folder to text format.
+        
+        Args:
+            folder_num: Folder number to convert files from
+            output_dir: Directory to save converted files (if None, use original location)
             
+        Returns:
+            List of tuples (file_path, success, error_message)
+        """
+        if folder_num not in self.folder_map:
+            return [("", False, f"Folder number {folder_num} not found")]
+            
+        folder_path = self.folder_map[folder_num]
+        convertible_files = self.folder_files[folder_num]
+        
+        if not convertible_files:
+            return [("", False, f"No convertible files found in folder {folder_num}")]
+            
+        results = []
+        
+        for file_path in convertible_files:
+            file_name = os.path.basename(file_path)
+            if output_dir:
+                output_path = os.path.join(output_dir, file_name + ".txt")
+            else:
+                output_path = file_path + ".txt"
+                
+            try:
+                # Read the file content
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                except UnicodeDecodeError:
+                    # Try with Latin-1 if UTF-8 fails
+                    with open(file_path, 'r', encoding='latin-1') as f:
+                        content = f.read()
+                
+                # Write to output file
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                    
+                results.append((file_path, True, f"Converted to {output_path}"))
+            except Exception as e:
+                results.append((file_path, False, str(e)))
+                
+        return results
+                
     def interactive_mode(self):
         """Run interactive mode for file conversion"""
         if not self.interactive:
@@ -747,7 +804,8 @@ class SpringBootAnalyzer:
             
         while True:
             print("\nFile Conversion Options:")
-            print("  - Enter a file number to convert (e.g., '3.2')")
+            print("  - Enter a file number to convert and view a single file (e.g., '3.2')")
+            print("  - Enter a folder number to convert all files in that folder (e.g., '3')")
             print("  - Enter 'list' to show numbered file list again")
             print("  - Enter 'q' to quit")
             
@@ -760,37 +818,87 @@ class SpringBootAnalyzer:
                 self.display_tree()
                 continue
                 
-            # Try to convert the file
-            success, content, message = self.convert_file_to_text(choice)
-            
-            if not success:
-                print(f"Error: {message}")
-                continue
+            # Check if it's a folder number
+            if choice in self.folder_map:
+                # It's a folder - ask for output directory
+                print(f"\nFolder selected: {self.folder_map[choice]}")
+                print(f"Found {len(self.folder_files[choice])} convertible files")
                 
-            # Display file content
-            file_path = self.file_map[choice]
-            print(f"\n{'-' * 80}")
-            print(f"File: {file_path}")
-            if message:
-                print(f"Note: {message}")
-            print(f"{'-' * 80}")
-            print(content)
-            print(f"{'-' * 80}")
-            
-            # Ask if user wants to save the content to a file
-            save_choice = input("Save this content to a file? (y/n): ").strip().lower()
-            if save_choice == 'y':
-                default_name = os.path.basename(file_path) + ".txt"
-                file_name = input(f"Enter file name [{default_name}]: ").strip()
-                if not file_name:
-                    file_name = default_name
+                if not self.folder_files[choice]:
+                    print("No convertible files in this folder.")
+                    continue
                     
-                try:
-                    with open(file_name, 'w', encoding='utf-8') as f:
-                        f.write(content)
-                    print(f"Content saved to {file_name}")
-                except Exception as e:
-                    print(f"Error saving file: {e}")
+                # Ask if user wants to create a new output directory or use the same location
+                save_option = input("Save converted files to: \n"
+                                  "1. Same location as original files (adds .txt extension)\n"
+                                  "2. Specify a different directory\n"
+                                  "Enter choice (1/2): ").strip()
+                
+                output_dir = None
+                if save_option == '2':
+                    output_dir = input("Enter output directory path: ").strip()
+                    # Create the directory if it doesn't exist
+                    if output_dir and not os.path.exists(output_dir):
+                        try:
+                            os.makedirs(output_dir)
+                            print(f"Created directory: {output_dir}")
+                        except Exception as e:
+                            print(f"Error creating directory: {e}")
+                            continue
+                            
+                # Convert the files
+                print("\nConverting files...")
+                results = self.convert_folder_files(choice, output_dir)
+                
+                # Display results
+                success_count = sum(1 for _, success, _ in results if success)
+                print(f"\nSuccessfully converted {success_count} of {len(results)} files.")
+                
+                # Show details for each file
+                for file_path, success, message in results:
+                    file_name = os.path.basename(file_path) if file_path else ""
+                    status = "Success" if success else "Failed"
+                    
+                    if self.use_color:
+                        status_color = Colors.GREEN if success else Colors.RED
+                        print(f"{status_color}{status}{Colors.RESET}: {file_name} - {message}")
+                    else:
+                        print(f"{status}: {file_name} - {message}")
+                        
+            elif choice in self.file_map:
+                # It's a single file
+                success, content, message = self.convert_file_to_text(choice)
+                
+                if not success:
+                    print(f"Error: {message}")
+                    continue
+                    
+                # Display file content
+                file_path = self.file_map[choice]
+                print(f"\n{'-' * 80}")
+                print(f"File: {file_path}")
+                if message:
+                    print(f"Note: {message}")
+                print(f"{'-' * 80}")
+                print(content)
+                print(f"{'-' * 80}")
+                
+                # Ask if user wants to save the content to a file
+                save_choice = input("Save this content to a file? (y/n): ").strip().lower()
+                if save_choice == 'y':
+                    default_name = os.path.basename(file_path) + ".txt"
+                    file_name = input(f"Enter file name [{default_name}]: ").strip()
+                    if not file_name:
+                        file_name = default_name
+                        
+                    try:
+                        with open(file_name, 'w', encoding='utf-8') as f:
+                            f.write(content)
+                        print(f"Content saved to {file_name}")
+                    except Exception as e:
+                        print(f"Error saving file: {e}")
+            else:
+                print(f"Invalid choice: {choice}")
 
 
 def parse_arguments():
