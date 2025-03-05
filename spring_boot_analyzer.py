@@ -2,8 +2,8 @@
 """
 Spring Boot Project Analyzer
 
-This script analyzes the structure of a Spring Boot project and displays it as a hierarchical tree
-with special highlighting for Spring Boot components.
+This script analyzes the structure of a Spring Boot project, displays it as a hierarchical tree
+with special highlighting for Spring Boot components, and allows interactive file conversion.
 
 Usage:
     python spring_boot_analyzer.py [options] [directory]
@@ -16,6 +16,7 @@ Options:
     --output=FORMAT                 Output format (text, json) [default: text]
     --color=BOOL                    Enable/disable color output [default: true]
     --max-depth=DEPTH               Maximum depth to scan [default: no limit]
+    --no-interactive                Disable interactive mode
 
 Examples:
     # Analyze current directory
@@ -29,6 +30,9 @@ Examples:
 
     # Output as JSON
     python spring_boot_analyzer.py --output=json
+    
+    # Disable interactive mode (no file conversion prompts)
+    python spring_boot_analyzer.py --no-interactive
 """
 
 import os
@@ -40,6 +44,7 @@ import argparse
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 import subprocess
+import binascii
 from pathlib import Path
 from typing import List, Dict, Set, Tuple, Optional, Any, Union
 
@@ -67,6 +72,13 @@ class SpringBootAnalyzer:
         "config": re.compile(r'@Configuration|@EnableAutoConfiguration|@ComponentScan'),
         "component": re.compile(r'@Component|@Bean'),
     }
+    
+    # File types that can be converted to text
+    CONVERTIBLE_EXTENSIONS = {
+        ".java", ".kt", ".groovy", ".xml", ".properties", ".yml", ".yaml", 
+        ".json", ".html", ".css", ".js", ".jsx", ".ts", ".tsx", ".md", ".txt",
+        ".sh", ".bat", ".cmd", ".sql", ".gradle", ".gitignore"
+    }
 
     def __init__(self, 
                  root_dir: str = ".", 
@@ -75,7 +87,8 @@ class SpringBootAnalyzer:
                  exclude_dirs: List[str] = None,
                  exclude_patterns: List[str] = None,
                  max_depth: int = -1,
-                 use_color: bool = True):
+                 use_color: bool = True,
+                 interactive: bool = True):
         """
         Initialize the Spring Boot project analyzer.
         
@@ -87,6 +100,7 @@ class SpringBootAnalyzer:
             exclude_patterns: List of glob patterns to exclude
             max_depth: Maximum depth for directory scanning (-1 for unlimited)
             use_color: Whether to use colored output
+            interactive: Whether to enable interactive mode for file conversion
         """
         self.root_dir = os.path.abspath(root_dir)
         self.exclude_files = set(exclude_files or [])
@@ -95,6 +109,7 @@ class SpringBootAnalyzer:
         self.exclude_patterns = set(exclude_patterns or [])
         self.max_depth = max_depth
         self.use_color = use_color
+        self.interactive = interactive
         
         # Add default Spring Boot exclusions
         self._add_default_exclusions()
@@ -107,6 +122,10 @@ class SpringBootAnalyzer:
         
         # Tree structure for the project
         self.project_tree = {"name": os.path.basename(self.root_dir), "type": "dir", "children": []}
+        
+        # File numbering system
+        self.current_folder_num = 0
+        self.file_map = {}  # Maps numbers to file paths
 
     def _add_default_exclusions(self):
         """Add default exclusions for Spring Boot projects"""
@@ -325,6 +344,19 @@ class SpringBootAnalyzer:
             
         return "file"
 
+    def _is_file_convertible(self, file_path: str) -> bool:
+        """
+        Check if a file can be meaningfully converted to text.
+        
+        Args:
+            file_path: Path to the file
+            
+        Returns:
+            True if file can be converted, False otherwise
+        """
+        ext = os.path.splitext(file_path)[1].lower()
+        return ext in self.CONVERTIBLE_EXTENSIONS
+
     def _detect_project_type(self):
         """Detect the type of Spring Boot project"""
         has_web = False
@@ -403,12 +435,13 @@ class SpringBootAnalyzer:
         if has_security:
             self.project_type += " (with Security)"
 
-    def _scan_directory(self, dir_path: str, depth: int = 0) -> Dict:
+    def _scan_directory(self, dir_path: str, parent_num: str = "", depth: int = 0) -> Dict:
         """
         Recursively scan a directory and build the tree structure.
         
         Args:
             dir_path: Path to the directory
+            parent_num: Numbering prefix for parent directory
             depth: Current depth of recursion
             
         Returns:
@@ -418,7 +451,20 @@ class SpringBootAnalyzer:
         if self.max_depth >= 0 and depth > self.max_depth:
             return {"name": os.path.basename(dir_path), "type": "dir", "children": [{"name": "...", "type": "max_depth_reached"}]}
             
-        result = {"name": os.path.basename(dir_path), "type": "dir", "children": []}
+        # Assign folder number
+        self.current_folder_num += 1
+        folder_num = str(self.current_folder_num) if not parent_num else parent_num
+        
+        result = {
+            "name": os.path.basename(dir_path), 
+            "type": "dir", 
+            "children": [],
+            "number": folder_num,
+            "path": dir_path
+        }
+        
+        # Store the folder in file map
+        self.file_map[folder_num] = dir_path
         
         try:
             items = []
@@ -434,17 +480,35 @@ class SpringBootAnalyzer:
             # Sort items: directories first, then files
             items.sort(key=lambda x: (not x[1], x[0].lower()))
             
+            # Process directories first
+            file_counter = 0
             for full_path, is_dir in items:
                 if is_dir:
-                    child = self._scan_directory(full_path, depth + 1)
+                    # Use current folder number as parent for subdirectories
+                    child = self._scan_directory(full_path, folder_num, depth + 1)
                     if child["children"]:  # Only add directories with content
                         result["children"].append(child)
-                else:
+                
+            # Process files
+            for full_path, is_dir in items:
+                if not is_dir:
+                    file_counter += 1
+                    file_num = f"{folder_num}.{file_counter}"
                     file_type = self._detect_file_type(full_path)
-                    result["children"].append({
+                    is_convertible = self._is_file_convertible(full_path)
+                    
+                    file_node = {
                         "name": os.path.basename(full_path),
-                        "type": file_type
-                    })
+                        "type": file_type,
+                        "number": file_num,
+                        "path": full_path,
+                        "convertible": is_convertible
+                    }
+                    
+                    result["children"].append(file_node)
+                    
+                    # Store the file in file map
+                    self.file_map[file_num] = full_path
                     
         except Exception as e:
             print(f"Error scanning directory {dir_path}: {e}", file=sys.stderr)
@@ -455,6 +519,10 @@ class SpringBootAnalyzer:
     def analyze(self):
         """Analyze the Spring Boot project and build the project tree"""
         print(f"Analyzing Spring Boot project in {self.root_dir}...")
+        
+        # Reset counters
+        self.current_folder_num = 0
+        self.file_map = {}
         
         # Detect JDK and Spring Boot versions
         self._detect_jdk_version()
@@ -489,39 +557,44 @@ class SpringBootAnalyzer:
         # Get node name with appropriate color
         node_type = node.get("type", "unknown")
         node_name = node.get("name", "")
+        node_number = node.get("number", "")
         
         if self.use_color:
             if node_type == "dir":
-                node_str = f"{Colors.BOLD}{Colors.BLUE}{node_name}/{Colors.RESET}"
+                node_str = f"{Colors.BOLD}{Colors.BLUE}[{node_number}] {node_name}/{Colors.RESET}"
             elif node_type == "controller":
-                node_str = f"{Colors.GREEN}{node_name} [Controller]{Colors.RESET}"
+                node_str = f"{Colors.GREEN}[{node_number}] {node_name} [Controller]{Colors.RESET}"
             elif node_type == "service":
-                node_str = f"{Colors.YELLOW}{node_name} [Service]{Colors.RESET}"
+                node_str = f"{Colors.YELLOW}[{node_number}] {node_name} [Service]{Colors.RESET}"
             elif node_type == "repository":
-                node_str = f"{Colors.MAGENTA}{node_name} [Repository]{Colors.RESET}"
+                node_str = f"{Colors.MAGENTA}[{node_number}] {node_name} [Repository]{Colors.RESET}"
             elif node_type == "entity":
-                node_str = f"{Colors.CYAN}{node_name} [Entity]{Colors.RESET}"
+                node_str = f"{Colors.CYAN}[{node_number}] {node_name} [Entity]{Colors.RESET}"
             elif node_type == "config":
-                node_str = f"{Colors.RED}{node_name} [Configuration]{Colors.RESET}"
+                node_str = f"{Colors.RED}[{node_number}] {node_name} [Configuration]{Colors.RESET}"
             elif node_type == "component":
-                node_str = f"{Colors.YELLOW}{node_name} [Component]{Colors.RESET}"
+                node_str = f"{Colors.YELLOW}[{node_number}] {node_name} [Component]{Colors.RESET}"
             elif node_type == "resource":
-                node_str = f"{Colors.BOLD}{Colors.CYAN}{node_name} [Resource]{Colors.RESET}"
+                node_str = f"{Colors.BOLD}{Colors.CYAN}[{node_number}] {node_name} [Resource]{Colors.RESET}"
             elif node_type == "error":
-                node_str = f"{Colors.RED}{node_name}{Colors.RESET}"
+                node_str = f"{Colors.RED}[{node_number}] {node_name}{Colors.RESET}"
             elif node_type == "max_depth_reached":
                 node_str = f"{Colors.YELLOW}{node_name}{Colors.RESET}"
             else:
-                node_str = node_name
+                node_str = f"[{node_number}] {node_name}"
+                if node.get("convertible", False):
+                    node_str += f" {Colors.GREEN}(convertible){Colors.RESET}"
         else:
             type_label = ""
             if node_type == "dir":
-                node_str = f"{node_name}/"
+                node_str = f"[{node_number}] {node_name}/"
             elif node_type in ["controller", "service", "repository", "entity", "config", "component", "resource"]:
                 type_label = f" [{node_type.capitalize()}]"
-                node_str = f"{node_name}{type_label}"
+                node_str = f"[{node_number}] {node_name}{type_label}"
             else:
-                node_str = node_name
+                node_str = f"[{node_number}] {node_name}"
+                if node.get("convertible", False):
+                    node_str += " (convertible)"
                 
         result.append(f"{prefix}{connector}{node_str}")
         
@@ -610,6 +683,114 @@ class SpringBootAnalyzer:
         }
         
         return json.dumps(result, indent=2)
+        
+    def convert_file_to_text(self, file_num: str) -> Tuple[bool, str, str]:
+        """
+        Convert a file to text format.
+        
+        Args:
+            file_num: File number to convert
+            
+        Returns:
+            Tuple of (success, content, error_message)
+        """
+        if file_num not in self.file_map:
+            return False, "", f"File number {file_num} not found"
+            
+        file_path = self.file_map[file_num]
+        
+        if not os.path.isfile(file_path):
+            return False, "", f"Not a file: {file_path}"
+            
+        # Check if file is convertible
+        if not self._is_file_convertible(file_path):
+            try:
+                # Try to generate hexdump for binary files
+                with open(file_path, 'rb') as f:
+                    content = f.read(1024)  # Read first 1KB
+                    
+                hex_dump = []
+                for i in range(0, len(content), 16):
+                    chunk = content[i:i+16]
+                    hex_line = ' '.join(f'{b:02x}' for b in chunk)
+                    ascii_line = ''.join(chr(b) if 32 <= b < 127 else '.' for b in chunk)
+                    hex_dump.append(f"{i:08x}  {hex_line:<47}  |{ascii_line}|")
+                    
+                if len(content) < os.path.getsize(file_path):
+                    hex_dump.append("... (truncated)")
+                    
+                return True, "\n".join(hex_dump), "Binary file (hexdump preview)"
+            except Exception as e:
+                return False, "", f"Error processing binary file: {e}"
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                
+            return True, content, ""
+        except UnicodeDecodeError:
+            # Failed with UTF-8, might be another encoding or binary
+            try:
+                with open(file_path, 'r', encoding='latin-1') as f:
+                    content = f.read()
+                    
+                return True, content, "Note: File decoded with Latin-1 encoding"
+            except Exception as e:
+                return False, "", f"Error reading file: {e}"
+        except Exception as e:
+            return False, "", f"Error reading file: {e}"
+            
+    def interactive_mode(self):
+        """Run interactive mode for file conversion"""
+        if not self.interactive:
+            return
+            
+        while True:
+            print("\nFile Conversion Options:")
+            print("  - Enter a file number to convert (e.g., '3.2')")
+            print("  - Enter 'list' to show numbered file list again")
+            print("  - Enter 'q' to quit")
+            
+            choice = input("\nEnter your choice: ").strip()
+            
+            if choice.lower() == 'q':
+                break
+                
+            if choice.lower() == 'list':
+                self.display_tree()
+                continue
+                
+            # Try to convert the file
+            success, content, message = self.convert_file_to_text(choice)
+            
+            if not success:
+                print(f"Error: {message}")
+                continue
+                
+            # Display file content
+            file_path = self.file_map[choice]
+            print(f"\n{'-' * 80}")
+            print(f"File: {file_path}")
+            if message:
+                print(f"Note: {message}")
+            print(f"{'-' * 80}")
+            print(content)
+            print(f"{'-' * 80}")
+            
+            # Ask if user wants to save the content to a file
+            save_choice = input("Save this content to a file? (y/n): ").strip().lower()
+            if save_choice == 'y':
+                default_name = os.path.basename(file_path) + ".txt"
+                file_name = input(f"Enter file name [{default_name}]: ").strip()
+                if not file_name:
+                    file_name = default_name
+                    
+                try:
+                    with open(file_name, 'w', encoding='utf-8') as f:
+                        f.write(content)
+                    print(f"Content saved to {file_name}")
+                except Exception as e:
+                    print(f"Error saving file: {e}")
 
 
 def parse_arguments():
@@ -639,8 +820,9 @@ def parse_arguments():
     
     parser.add_argument("--max-depth", type=int, default=-1,
                       help="Maximum depth to scan (-1 for unlimited)")
-    
-    # Note: We don't need to add --help/-h as it's automatically added by argparse
+                      
+    parser.add_argument("--no-interactive", action="store_true",
+                      help="Disable interactive mode")
     
     args = parser.parse_args()
     return args
@@ -658,7 +840,8 @@ def main():
             exclude_dirs=args.exclude_dirs,
             exclude_patterns=args.exclude_patterns,
             max_depth=args.max_depth,
-            use_color=args.color
+            use_color=args.color,
+            interactive=not args.no_interactive
         )
         
         analyzer.analyze()
@@ -667,6 +850,10 @@ def main():
             print(analyzer.to_json())
         else:
             analyzer.display_tree()
+            
+        # Run interactive mode if enabled
+        if not args.no_interactive and args.output != "json":
+            analyzer.interactive_mode()
             
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
