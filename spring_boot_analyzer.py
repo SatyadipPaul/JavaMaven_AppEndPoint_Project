@@ -124,7 +124,6 @@ class SpringBootAnalyzer:
         self.project_tree = {"name": os.path.basename(self.root_dir), "type": "dir", "children": []}
         
         # File and folder numbering system
-        self.current_folder_num = 0
         self.file_map = {}  # Maps numbers to file paths
         self.folder_map = {}  # Maps numbers to folder paths
         self.folder_files = defaultdict(list)  # Maps folder numbers to list of files within
@@ -437,25 +436,24 @@ class SpringBootAnalyzer:
         if has_security:
             self.project_type += " (with Security)"
 
-    def _scan_directory(self, dir_path: str, parent_num: str = "", depth: int = 0) -> Dict:
+    def _scan_directory(self, dir_path: str, parent_number: str = "1") -> Dict:
         """
         Recursively scan a directory and build the tree structure.
         
         Args:
             dir_path: Path to the directory
-            parent_num: Numbering prefix for parent directory
-            depth: Current depth of recursion
+            parent_number: Numbering prefix for parent directory
             
         Returns:
             Dictionary representing the directory structure
         """
         # Check max depth
+        depth = parent_number.count(".")
         if self.max_depth >= 0 and depth > self.max_depth:
             return {"name": os.path.basename(dir_path), "type": "dir", "children": [{"name": "...", "type": "max_depth_reached"}]}
             
-        # Assign folder number
-        self.current_folder_num += 1
-        folder_num = str(self.current_folder_num) if not parent_num else parent_num
+        # Use parent number for the current directory
+        folder_num = parent_number
         
         result = {
             "name": os.path.basename(dir_path), 
@@ -483,19 +481,22 @@ class SpringBootAnalyzer:
             items.sort(key=lambda x: (not x[1], x[0].lower()))
             
             # Process directories first
-            file_counter = 0
+            dir_counter = 0
             for full_path, is_dir in items:
                 if is_dir:
-                    # Use current folder number as parent for subdirectories
-                    child = self._scan_directory(full_path, folder_num, depth + 1)
+                    dir_counter += 1
+                    # Create hierarchical numbering for subdirectories
+                    child_number = f"{folder_num}.{dir_counter}"
+                    child = self._scan_directory(full_path, child_number)
                     if child["children"]:  # Only add directories with content
                         result["children"].append(child)
                 
             # Process files
+            file_counter = 0
             for full_path, is_dir in items:
                 if not is_dir:
                     file_counter += 1
-                    file_num = f"{folder_num}.{file_counter}"
+                    file_num = f"{folder_num}.{dir_counter + file_counter}"
                     file_type = self._detect_file_type(full_path)
                     is_convertible = self._is_file_convertible(full_path)
                     
@@ -527,7 +528,6 @@ class SpringBootAnalyzer:
         print(f"Analyzing Spring Boot project in {self.root_dir}...")
         
         # Reset counters and maps
-        self.current_folder_num = 0
         self.file_map = {}
         self.folder_map = {}
         self.folder_files = defaultdict(list)
@@ -536,8 +536,8 @@ class SpringBootAnalyzer:
         self._detect_jdk_version()
         self._detect_spring_boot_version()
         
-        # Scan the directory structure
-        self.project_tree = self._scan_directory(self.root_dir)
+        # Scan the directory structure - start with "1" for root
+        self.project_tree = self._scan_directory(self.root_dir, "1")
         
         # Detect project type based on collected stats
         self._detect_project_type()
@@ -763,7 +763,13 @@ class SpringBootAnalyzer:
             return [("", False, f"Folder number {folder_num} not found")]
             
         folder_path = self.folder_map[folder_num]
-        convertible_files = self.folder_files[folder_num]
+        
+        # Find all convertible files in this folder
+        convertible_files = []
+        for file_num, file_path in self.file_map.items():
+            # Check if the file is directly under this folder
+            if os.path.dirname(file_path) == folder_path and self._is_file_convertible(file_path):
+                convertible_files.append(file_path)
         
         if not convertible_files:
             return [("", False, f"No convertible files found in folder {folder_num}")]
@@ -804,8 +810,8 @@ class SpringBootAnalyzer:
             
         while True:
             print("\nFile Conversion Options:")
-            print("  - Enter a file number to convert and view a single file (e.g., '3.2')")
-            print("  - Enter a folder number to convert all files in that folder (e.g., '3')")
+            print("  - Enter a file number to convert and view a single file (e.g., '1.2.3')")
+            print("  - Enter a folder number to convert all files in that folder (e.g., '1.2')")
             print("  - Enter 'list' to show numbered file list again")
             print("  - Enter 'q' to quit")
             
@@ -822,9 +828,16 @@ class SpringBootAnalyzer:
             if choice in self.folder_map:
                 # It's a folder - ask for output directory
                 print(f"\nFolder selected: {self.folder_map[choice]}")
-                print(f"Found {len(self.folder_files[choice])} convertible files")
                 
-                if not self.folder_files[choice]:
+                # Find convertible files in this folder
+                convertible_files = []
+                for file_num, file_path in self.file_map.items():
+                    if os.path.dirname(file_path) == self.folder_map[choice] and self._is_file_convertible(file_path):
+                        convertible_files.append(file_path)
+                
+                print(f"Found {len(convertible_files)} convertible files")
+                
+                if not convertible_files:
                     print("No convertible files in this folder.")
                     continue
                     
