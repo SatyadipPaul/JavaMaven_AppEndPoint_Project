@@ -9,7 +9,6 @@ Usage:
     python spring_boot_analyzer.py [options] [directory]
 
 Options:
-    --help, -h                      Show this help message and exit
     --exclude-file=FILENAME         Exclude specific file by name
     --exclude-ext=EXTENSION         Exclude files by extension (without dot)
     --exclude-dir=DIRECTORY         Exclude directory
@@ -641,15 +640,9 @@ def parse_arguments():
     parser.add_argument("--max-depth", type=int, default=-1,
                       help="Maximum depth to scan (-1 for unlimited)")
     
-    parser.add_argument("--help", "-h", action="store_true",
-                      help="Show this help message and exit")
+    # Note: We don't need to add --help/-h as it's automatically added by argparse
     
     args = parser.parse_args()
-    
-    if args.help:
-        parser.print_help()
-        sys.exit(0)
-        
     return args
 
 
